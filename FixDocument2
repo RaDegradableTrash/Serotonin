@@ -1,0 +1,123 @@
+这次重构直接切中了高级 UI 设计的灵魂——**“打破静态、强化结构、用动效服务功能”**。
+
+你提出的这 7 点修改，本质上是把原来的“平面切换工具”升级为一个**具有景深感、机械联动感、且空间布局高度合理的高级 3D 交互舞台**。特别是将“右半屏留白作为功能区”和“卡牌两两错开的牌堆感（Staggered Stack）”，直接让视觉逻辑演变成了工业仪表盘的质感。
+
+下面是针对这 7 点全面翻新的**重构设计策划案**，包含直接提供给开发（或 AI 辅助）的**数学重构逻辑与代码指令**。
+
+---
+
+# 🔬 Serotonin Protocol：3D 舞台重构设计案（V2）
+
+## 1. 空间布局与全局定位重构（修正第 5 点）
+
+为了让左侧的**视觉骨架（黑线、卡牌、文字）**与右侧的**控制面板、被切割的钟表**达成完美比例，整个 WebGL 视口的 3D 坐标轴需要重新划定。
+
+* **视觉轴线切分：**
+* **1/7 处（左边缘偏内）：** 放置纵向黑色细线。
+* **1/3 偏左处（紧挨黑线）：** 放置 `MenuCards`（以黑卡为世界坐标 X 轴的绝对原点 $X=0$）。
+* **最右侧边缘：** 放置 `GaugeRing`（钟表），使其外边缘露出约 45%（$9/20$），形成完美的边界切裂感。
+* **右侧整个半屏（$1/2$ 至 $6/7$ 区域）：** 留出绝对干净的空气感空间，用于直接平铺后续的功能 UI 元素。
+
+
+
+### 📋 提给 AI 的相机与场景定位调整提示词：
+
+```text
+Modify the layout geometry in Scene.tsx to reposition components according to the new screen budget:
+1. PerspectiveCamera Adjustments:
+- Keep FOV around 35 to 40 to enhance parallel-like rendering but with subtle 3D convergence.
+- Reposition camera to a more dramatic side-angle: set position close to [3.8, 1.2, 7.5], but set lookAt to [-0.6, 0.1, 0] so the visual focal point moves significantly to the left.
+2. Component Transformations:
+- Center of MenuCards should sit around world X = -0.6 (makes it sit near the 1/3 mark of screen width, close to the black line).
+- Shift the GaugeRing mesh to a far-right position (e.g., world X = 3.6, Y = -0.1, Z = -1.5) and increase its radius/scale so that exactly 45% of its left semi-circle is cut by the right browser viewport edge.
+
+```
+
+---
+
+## 2. 卡牌关系、形态与物理动效升级（修正第 1, 2, 3 点）
+
+摆脱原先死板的单卡滑出，引入“机械卡带舱”的联动逻辑。未激活的卡片不再完全隐形，而是作为“备用电位”层叠在黑卡后方，构成一个有厚度的紧密牌堆。
+
+* **形态压窄与大倾斜（第 3 点）：** 将卡片比例从原来的 `[1.15, 1.82]` 压窄为 `[0.85, 1.82]`（比例更接近刀片或长条电极槽），同时由于相机向右拉大、看左，**卡片在视口中呈现出极具几何美感的大角度侧向倾斜**，不再展示冗余的正面。
+* **牌堆微展联动（第 1, 2 点）：** * **静息状态：** 4 张彩色卡片以微小的 Z 轴间距（如 $\Delta Z = -0.15$）重叠隐藏在黑卡正后方。在摄像头的侧视角度下，用户能清晰看到黑卡后方露出的一层层叠合的灰度边缘。
+* **动感切换时刻（The Transition Bounce）：** 当用户按下 `1-4` 切换时，激活物理弹簧阻尼。在切换的千分之几秒内，**所有卡片两两之间的 X 轴和 Z 轴距离瞬间被“拉扯撑开”**，形成一个牌堆被整体拨开的微弱物理扩张动画，随后，目标卡片精准向右利落抽出，其余卡片迅速恢复紧密重叠。
+
+
+
+---
+
+## 3. 实时虚化与电位唤醒（修正第 4 点）
+
+用“近实远虚”**与**“色彩唤醒”完全重构材质 Shader，表现出电荷激活的生物科技质感。
+
+* **静息黑灰（未选中）：** 处于堆叠状态的 3 张不活跃卡片，其材质的 `color` 统一被钳制在**低饱和度的无彩色（中灰/黑灰）**。
+* **近实远虚（Depth of Field 模拟）：** 越靠后的卡片，其物理边界越模糊，`opacity`（透明度）越低。可以通过前端着色器（Fragment Shader）或动态调整材质的 `roughness`（粗糙度）和 `transmission`（透传度）来实现。
+* **抽出唤醒：** 当某张卡片被选中并向右抽出的过程中：
+* **色彩觉醒：** 它的颜色在滑出黑卡边界的瞬间，由灰黑色平滑 Lerp（渐变）为它原本高饱和度的特异性电位色（红/蓝/黄/灰）。
+* **能量聚合（去虚化）：** 随着它离黑卡越来越远，它的材质边界变得极度锐利，透明度达到 100%，完全失去虚化，展现出最高清晰度的实体状态。
+
+
+
+---
+
+## 4. 联动重构：卡牌组件核心数据参数（更新 `MenuCards.tsx` 逻辑）
+
+为了让卡片向右抽出、两两错开、并具备高度契合的文字绑定，需要重写配置矩阵：
+
+```tsx
+// ─────────────────────────────────────────────────────────────────
+// 修正后的全新 CONFIG：统一右抽 + 初始状态侧边堆叠露出 + 局部展开惯性
+// ─────────────────────────────────────────────────────────────────
+
+// 压窄后的卡牌几何尺寸 (长宽比由肥变窄，符合MG制图美学)
+const CARD_ARGS = [0.85, 1.82, 0.06]; 
+
+// 静息堆叠位置：4张卡在Z轴上依序排开，在侧视视角下，能看到一层层的层叠边缘
+const getRestPosition = (cardIdx: number) => {
+  return new THREE.Vector3(0, 0, -cardIdx * 0.12);
+};
+
+// 激活后的目标位置：选中的卡片打破堆叠，统一往右抽出（X正方向拉大）
+const getActivePosition = (cardIdx: number) => {
+  return new THREE.Vector3(1.10, 0, -0.05); 
+};
+
+```
+
+### 5. 随动文字与功能 UI 平铺化（修正第 6, 7 点）
+
+* **随动文字 HUD（第 6 点）：** 每个卡牌的标题文字（如 `ADIOS: TYPE-A`）不再在底部死死静止，而是**与对应的彩色卡片进行 X 轴位移绑定**。
+* 当红卡藏在黑卡后时，红卡的文字折叠隐藏。
+* 当红卡向右滑出时，属于它的文本框也像小挂车一样，**以左对齐红卡左边缘的姿态，同步向右平滑滑出**。文字字号加大，标题加粗，副标题采用像素细体，拉开信息层级。
+
+
+* **右半屏功能直显（第 7 点 —— 核心功能跃迁）：**
+彻底干掉所有突兀的悬浮弹窗。右半屏直接作为数据灌装的常驻舞台。
+* 当左侧卡片抽出、状态锁定的同时，右半屏的留白空间直接以相同的**侧视透视角度**渐显弹出表单（文本框、频率调谐滑块、ENTER CHANNEL 按钮）。
+* 这里的 UI 输入框和按钮同样带有 gentel tilt（向前倾斜度），让整张网页看起来就像是一块一整面的微调生物控制台。
+
+
+
+---
+
+### 📋 扔给 Copilot / 动手重构的最终整合指令：
+
+你可以将以下这段高度具象的英文指令直接发给 Copilot，让它帮你重写 `useFrame` 内部的矩阵算法：
+
+```text
+Rewrite the React Three Fiber update loop for MenuCards and HUD according to these UX rules:
+1. Card Interactivity & Stagger:
+- In the useFrame loop, calculate a global `expansionFactor`. If a transition key (1-4) was recently pressed, spike `expansionFactor` to 1.3 and decay it back to 1.0 using an exponential easing filter.
+- Inactive card positions should be targets dynamically multiplied by this factor: x = 0, y = 0, z = -index * 0.12 * expansionFactor. This creates a tactile "spring layout stretch" during active index switching.
+2. Color & Opacity De-blurring:
+- For the active card, linearly interpolate its color from grayscaled (#333333) to its true accent color based on its current X position fraction (progress from 0 to 1.10).
+- Animate its material roughness from 0.8 (blurry/matte) down to 0.2 (sharp/glossy) as it reaches full extraction.
+3. Connected Typography Tracking:
+- Export or pass the dynamic real-time X position of the currently active card to the HUD component. 
+- The HUD text block wrapper must apply a CSS translate3d transform tied directly to this 3D X-coordinate so the typography tracks and slides right along with the card, keeping its left edge aligned perfectly with the card's left margin.
+- Display the main action inputs directly on the right half of the viewport with a matching orthographic/perspective angle, removing modal popups entirely.
+
+```
+
+这套方案下去，你的项目视觉和操作反馈直接就具有了**准 AAA 级独立游戏独立菜单**的交互张力，动手把它推上去吧！

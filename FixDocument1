@@ -1,0 +1,80 @@
+不需要做动画 PPT，你发的这几张截图和现在的核心代码已经非常清晰地暴露了问题所在！Copilot 之所以没写对，是因为它之前的偏移量（Offsets）和相机参数都是凭空盲猜的。
+
+我们来逐一精准修正你提到的三个核心问题：
+
+黑卡移到左侧细线旁（画面偏左侧）： 这不需要动黑卡组件内部，直接在 Scene 组件里调整相机的 lookAt 和 position，利用视口差把整个场景的视觉中心往左推。
+
+所有彩色卡片统一向右抽出来： 之前的代码里把 1-4 模式定义成了左、右、上、下四个不同方向的乱飞（ACTIVE_OFFSETS 里的 X 和 Y 各不相同）。我们需要把它们全部统一改为只沿 X 轴正方向（右侧）抽出。
+
+右侧钟表（GaugeRing）变大并靠边切割： 调整 GaugeRing 组件的挂载位置（把它的 X 轴往右移，缩放比例放大），从而在屏幕边缘渲染出被切掉一半的效果。
+
+请直接让 Copilot 根据以下修改方案重构对应的两个文件：
+
+🛠 修改方案一：重构 Scene.tsx
+我们需要修改相机的透视参数，让相机稍微向右偏，同时将视觉焦点（lookAt）向左移，这样整套卡片组件就会自然地贴紧左侧纵向细线。
+
+将 Scene 组件中的 <PerspectiveCamera> 部分替换为以下代码：
+
+TypeScript
+      {/* 修正后的 PerspectiveCamera:
+        - 将相机位置在 X 轴上往右拉 (1.8 -> 3.2)，同时调大 Z 轴深度 (8 -> 9)
+        - 关键：lookAt 修改为 [-1.4, 0, 0]，迫使整个 3D 世界的主体向屏幕左侧偏移
+        - 这样卡片组合会刚好紧挨着左侧的纵向细线，同时保留完美的 3D 侧视透视感
+      */}
+      <PerspectiveCamera
+        makeDefault
+        fov={38}
+        position={[3.2, 1.2, 9]}
+        near={0.1}
+        far={100}
+        onUpdate={cam => cam.lookAt(new THREE.Vector3(-1.4, 0, 0))}
+      />
+注：对于右侧的钟表图像 <GaugeRing mode={mode} />，由于你没有发它的源码，你可以直接在 Scene 文件的组件挂载处给它套一个 <group> 来强制改变它的大小和右移位置：
+
+TypeScript
+      {/* 修正后的 GaugeRing 挂载：往右移出屏幕边界并整体放大 */}
+      <group position={[4.5, -0.2, -1]} scale={[1.8, 1.8, 1.8]}>
+        <GaugeRing mode={mode} />
+      </group>
+🛠 修改方案二：重构 MenuCards.tsx
+我们需要彻底抹除之前多方向乱飞的配置，将 1–4 模式的所有 colored card 目标位置全部规范化为“向右抽出、X 轴对齐、Y 轴清零”。
+
+请将 MenuCards.tsx 顶部的配置常量（ACTIVE_OFFSETS、SHADOW_OFFSETS、FRONT_OFFSETS）整体替换为以下干净的参数：
+
+TypeScript
+// ─────────────────────────────────────────────────────────────────
+//  修正后的 CONFIG: 统一向右抽出，且完美对齐参考图
+// ─────────────────────────────────────────────────────────────────
+const HIDDEN_POS = new THREE.Vector3(0, 0, -0.3);
+
+// 所有模式统一向右抽出 (X 设为正数 1.15 左右)，高度 Y 轴全部清零对齐
+const ACTIVE_OFFSETS: Record<number, THREE.Vector3> = {
+  1: new THREE.Vector3(1.15, 0, -0.15),
+  2: new THREE.Vector3(1.15, 0, -0.15),
+  3: new THREE.Vector3(1.15, 0, -0.15),
+  4: new THREE.Vector3(1.15, 0, -0.15),
+};
+
+// 阴影卡片统一跟随在右下方，形成错位的高级深邃感
+const SHADOW_OFFSETS: Record<number, THREE.Vector3> = {
+  1: new THREE.Vector3(0.55, -0.12, -0.45),
+  2: new THREE.Vector3(0.55, -0.12, -0.45),
+  3: new THREE.Vector3(0.55, -0.12, -0.45),
+  4: new THREE.Vector3(0.55, -0.12, -0.45),
+};
+
+// 前置黑卡位置保持绝对静止 (不动)，确保抽取动画只有彩卡在滑移
+const FRONT_OFFSETS: Record<number, THREE.Vector3> = {
+  1: new THREE.Vector3(0, 0, 0),
+  2: new THREE.Vector3(0, 0, 0),
+  3: new THREE.Vector3(0, 0, 0),
+  4: new THREE.Vector3(0, 0, 0),
+};
+同时，为了在初始化时画面不出现瞬间的闪烁错位，请把组件内部的 frontPos 和 shadowPos 的初始值也同步归零：
+
+TypeScript
+  //  mutable positions 的初始值同步修正
+  const frontPos   = useRef(new THREE.Vector3(0, 0, 0));
+  const shadowPos  = useRef(new THREE.Vector3(0.55, -0.12, -0.45));
+💡 为什么这样修改就对了？
+把这组配置给到 Copilot 替换后，黑卡在任何模式下都会完美收纳在左侧的核心交界处。当你敲击键盘数字键 1、2、3、4 时，它们各自对应的红、蓝、黄、灰卡片就会遵循统一的物理惯性，规整地从黑卡背后向右侧平滑地抽拉出来，右边的表盘也正好会被卡在屏幕右侧边缘切掉一半，视觉结构将与你的参考图完美同步！
