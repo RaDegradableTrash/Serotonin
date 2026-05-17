@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { encryptData } from '../utils/cryptoUtils';
-import { uploadVesicle } from '../utils/mockBackend';
+import { encryptData } from './utils/cryptoUtils';
+import { uploadVesicle } from './utils/mockBackend';
 
 const UploadStation: React.FC = () => {
   const [hz, setHz] = useState('');

@@ -1,9 +1,10 @@
 import React from 'react';
 import { PerspectiveCamera, SoftShadows } from '@react-three/drei';
 import * as THREE from 'three';
-import FluidBackground from './scene/FluidBackground';
+import FluidBackground from './FluidBackground';
 import MenuCards from './scene/MenuCards';
 import GaugeRing from './scene/GaugeRing';
+
 
 const accentColors: Record<number, THREE.Color> = {
   0: new THREE.Color('#B8A880'),

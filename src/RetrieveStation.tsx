@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform } from 'framer-motion';
-import { decryptData } from '../utils/cryptoUtils';
-import { downloadVesicle, checkVesicleExists } from '../utils/mockBackend';
+import { decryptData } from './utils/cryptoUtils';
+import { downloadVesicle, checkVesicleExists } from './utils/mockBackend';
 
 const RetrieveStation: React.FC = () => {
   const [hz, setHz] = useState('');
