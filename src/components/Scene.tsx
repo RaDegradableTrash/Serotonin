@@ -6,11 +6,11 @@ import MenuCards from './scene/MenuCards';
 import GaugeRing from './scene/GaugeRing';
 
 const accentColors: Record<number, THREE.Color> = {
-  0: new THREE.Color('#141414'),
-  1: new THREE.Color('#ff123f'),
-  2: new THREE.Color('#ffc800'),
-  3: new THREE.Color('#00f0b5'),
-  4: new THREE.Color('#0066ff'),
+  0: new THREE.Color('#B8A880'),
+  1: new THREE.Color('#E39F9F'),
+  2: new THREE.Color('#F1D6D6'),
+  3: new THREE.Color('#35568A'),
+  4: new THREE.Color('#8B9BC1'),
 };
 
 interface SceneProps {
@@ -40,8 +40,8 @@ const Scene: React.FC<SceneProps> = ({ mode, cardXRef }) => {
 
       <SoftShadows size={22} focus={0.6} samples={16} />
 
-      <directionalLight position={[4, 8, 4]} intensity={1.15} castShadow shadow-mapSize={[2048, 2048]} />
-      <ambientLight intensity={0.50} color="#f0f0f4" />
+      <directionalLight position={[4, 8, 4]} intensity={1.15} shadow-mapSize={[2048, 2048]} />
+      <ambientLight intensity={0.6} color="#ffffff" />
       <pointLight position={[-1, 1.5, 4]} intensity={0.35} color={accent} />
       <pointLight position={[-5, 0, -3]} intensity={0.22} color="#c8d8ff" />
 

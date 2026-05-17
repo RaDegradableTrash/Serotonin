@@ -10,23 +10,27 @@ const CARD_H = 2.70;
 const CARD_D = 0.077;
 
 // ── Colors ──────────────────────────────────────────────────────────
-const GRAY_DEEP  = new THREE.Color('#dccfae');  // deep rest sand-beige color for active card
-const GRAY_MID   = new THREE.Color('#F0E8D0');  // rest ivory beige color for interactive cards
+const GRAY_MID   = new THREE.Color('#F7F7EA');  // rest ivory beige color for interactive cards
 const ACCENT: Record<number, THREE.Color> = {
-  0: new THREE.Color('#B8A880'),   // Warm bronze brown (black card)
-  1: new THREE.Color('#FE9580'),   // Soft peach red
-  2: new THREE.Color('#FDBF5C'),   // Warm golden yellow
-  3: new THREE.Color('#DDD33D'),   // Fresh lime green
-  4: new THREE.Color('#B0B8C0'),   // Soft slate grey-blue
+  0: new THREE.Color('#C0C0A8'),   // Warm bronze brown (black card)
+  1: new THREE.Color('#E9A254'),   // Soft peach red
+  2: new THREE.Color('#EEBF79'),   // Fresh lime green (swapped)
+  3: new THREE.Color('#07AFC1'),   // Warm golden yellow (swapped)
+  4: new THREE.Color('#70D4D5'),   // Soft slate grey-blue
 };
 
-const CARD_COLORS = ['#B8A880', '#FE9580', '#FDBF5C', '#DDD33D', '#B0B8C0'];
+const CARD_COLORS = ['#C0C0A8', '#E9A254', '#EEBF79', '#07AFC1', '#70D4D5'];
+// Unified rest color for non-active stacked cards to avoid color pollution and flashing
+const REST_BROWN_COLOR = new THREE.Color('#4a3532');
+
+// Primary key labels for the 5 interactive cards (index 0..4)
+const CARD_KEYS = ['~', '1', '2', '3', '4'];
 
 const CARD_LABELS = [
   { tag: 'NUCLEUS: MASTER', title: 'SEROTONIN NUCLEUS', sub: 'Master Synergy Control', freq: 'SYSTEM ANCHOR' },
   { tag: 'ADIOS: TYPE-A',   title: 'CHEMICAL SYNAPSE',  sub: 'Vesicle Upload',          freq: 'FREQ: 99.5 HZ'     },
-  { tag: 'BIEN: TYPE-B',    title: 'ELECTRICAL SYNAPSE', sub: 'Gap Junction / P2P',    freq: 'FREQ: ACTIVE'       },
   { tag: 'STANDBY: C',      title: 'HORMONE NOTE',       sub: 'Cellular Reflex',        freq: 'AWAITING IMPULSE'   },
+  { tag: 'BIEN: TYPE-B',    title: 'ELECTRICAL SYNAPSE', sub: 'Gap Junction / P2P',    freq: 'FREQ: ACTIVE'       },
   { tag: 'STANDBY: D',      title: 'ACTION POTENTIAL',   sub: 'Enzyme Potential',       freq: 'AWAITING IMPULSE'   },
 ];
 
@@ -62,11 +66,8 @@ const createCardTexture = (colorHex: string, type: number) => {
   ctx.fillRect(0, 0, 256, 512);
 
   // Subtle dark gradient underlay for visual depth
-  const grad = ctx.createLinearGradient(0, 0, 0, 512);
-  grad.addColorStop(0, 'rgba(255,255,255,0.06)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.22)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 256, 512);
+  // Removed strong dark bottom gradient to keep card base colors clean.
+  // If a subtle highlight is needed, it can be added later with low alpha.
 
   // Vector grooves drawing
   ctx.strokeStyle = 'rgba(255,255,255,0.18)';
@@ -86,7 +87,7 @@ const createCardTexture = (colorHex: string, type: number) => {
     ctx.moveTo(32, 256); ctx.lineTo(224, 256);
     ctx.stroke();
   } else if (type === 1) {
-    // Mode 1: Vesicle vertical thread nodes
+    // Mode 1: Vesicle vertical thread nodes texture
     for (let i = 50; i <= 200; i += 50) {
       ctx.beginPath();
       ctx.moveTo(i, 40);
@@ -132,6 +133,10 @@ const createCardTexture = (colorHex: string, type: number) => {
   ctx.strokeRect(10, 10, 236, 492);
 
   const texture = new THREE.CanvasTexture(canvas);
+  
+  // ─── 核心修复：强制告诉 Three.js，这个 Canvas 的纹理本来就是标准网页 sRGB 空间 ───
+  texture.colorSpace = THREE.SRGBColorSpace; 
+  
   return texture;
 };
 
@@ -142,8 +147,9 @@ interface MenuCardsProps {
 
 const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef }) => {
   const colorRefs = useRef<THREE.Mesh[]>([]);
-  const matRefs   = useRef<THREE.MeshStandardMaterial[]>([]);
+  const matRefs   = useRef<THREE.Material[]>([]);
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const keyRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Proximity-based warm ivory to bronze sand-beige gradient calculation
   const getBaseGrey = (j: number) => {
@@ -193,16 +199,54 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef }) => {
   const switchTime = useRef(-20.0);   // clock seconds at last switch
 
   // ── useFrame ───────────────────────────────────────────────────
+  // ── useFrame ───────────────────────────────────────────────────
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime();
 
-    // Detect mode switch
+    // Detect mode switch and perform a one-time material swap for previous/new active cards
     if (prevMode.current !== mode) {
+      const oldMode = prevMode.current;
+      const oldActive = BLACK_INDEX + oldMode;
+      const newActive = BLACK_INDEX + mode;
+
       prevMode.current = mode;
       switchTime.current = t;
+
+      // restore previous active card to be transparent (allow it to fade)
+      const prevMat = matRefs.current[oldActive] as any;
+      const prevMesh = colorRefs.current[oldActive];
+      if (prevMat) {
+        try {
+          if ('transparent' in prevMat) prevMat.transparent = true;
+          if ('depthWrite' in prevMat) prevMat.depthWrite = false;
+        } catch (e) {}
+      }
+      if (prevMesh) {
+        try { prevMesh.renderOrder = 0; } catch (e) {}
+      }
+
+      // force new active card to be opaque immediately and draw on top to avoid blending/artifacting
+      const newMat = matRefs.current[newActive] as any;
+      const newMesh = colorRefs.current[newActive];
+      if (newMat) {
+        try {
+          if ('transparent' in newMat) newMat.transparent = false;
+          if ('opacity' in newMat) newMat.opacity = 1.0;
+          if ('depthWrite' in newMat) newMat.depthWrite = true;
+          if ('polygonOffset' in newMat) {
+            newMat.polygonOffset = true;
+            newMat.polygonOffsetFactor = -1;
+            newMat.polygonOffsetUnits = -4;
+          }
+          if (newMat.color && CARD_COLORS[mode]) newMat.color.setStyle?.(CARD_COLORS[mode]);
+          if (newMat.emissive && CARD_COLORS[mode]) newMat.emissive.setStyle?.(CARD_COLORS[mode]);
+        } catch (e) {}
+      }
+      if (newMesh) {
+        try { newMesh.renderOrder = 2000; } catch (e) {}
+      }
     }
 
-    // Retrieve extraction progress of the active card to trigger space swallowing
     const activeIdx = BLACK_INDEX + mode;
     const activeState = cardStates.current[activeIdx];
     const activeRestX = activeState ? -RADIUS + RADIUS * Math.cos((activeIdx - BLACK_INDEX) * BASE_DELTA_PHI) : 0.0;
@@ -212,9 +256,10 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef }) => {
 
     const dt = t - switchTime.current;
 
+    // ─── 开始遍历 60 张卡牌 ───
     for (let j = 0; j < TOTAL_CARDS; j++) {
       const mesh = colorRefs.current[j];
-      const mat  = matRefs.current[j];
+      const mat  = matRefs.current[j] as any;
       if (!mesh || !mat) continue;
 
       const d = j - BLACK_INDEX;
@@ -230,7 +275,7 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef }) => {
 
       // ── Water Ripple Domino Spacing Wave ──
       const dist = Math.abs(j - activeIdx);
-      const localDt = dt - dist / 45.0; // Wave propagates outward at 45 cards per second
+      const localDt = dt - dist / 45.0;
       const localPulse = localDt < 0
         ? 0
         : 0.85 * Math.sin(2 * Math.PI * 1.25 * localDt) * Math.exp(-3.5 * localDt);
@@ -238,80 +283,143 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef }) => {
 
       const phi = swallowedD * BASE_DELTA_PHI * localExpansion;
 
-      // ── Rest position along the circular arc ──────────────────────
       const restX = -RADIUS + RADIUS * Math.cos(phi);
       const restZ = -RADIUS * Math.sin(phi);
 
-      // ── Position Target & Lerp ────────────────────────────────────
       const isInteractive = j >= 20 && j <= 24;
-      const modeIdx = j - 20; // 0 (Black), 1, 2, 3, 4
+      const modeIdx = j - 20; 
       const isActive = isInteractive && modeIdx === mode;
 
       const state = cardStates.current[j];
       if (!state) continue;
 
+      // ── Position Target & Lerp ──
       const target = isActive
-        ? new THREE.Vector3(restX + ACTIVE_X, 0, restZ + 0.11) // Slide out horizontally
+        ? new THREE.Vector3(restX + ACTIVE_X, 0, restZ + 0.11)
         : new THREE.Vector3(restX, 0, restZ);
 
       state.pos.lerp(target, isActive ? LERP_ACTIVE : LERP_REST);
       mesh.position.copy(state.pos);
       mesh.rotation.y = phi;
 
-      // xProgress: 0 (rest) → 1 (fully extracted)
+      // ─── 修正核心：将公共数学参数提前到这里计算，彻底解决未定义报错 ───
       const xProgress = Math.min(1, Math.max(0, (state.pos.x - restX) / ACTIVE_X));
 
-      // ── Color Awakening ──────────────────────────────────────────
-      let targetColor = getBaseGrey(j);
-
-      if (isInteractive) {
-        if (modeIdx === 0) {
-          // Black (Bronze) card awakens to deep bronze brown
-          targetColor = isActive ? new THREE.Color('#B8A880') : GRAY_MID;
-        } else {
-          // Colored cards awaken to vibrant fresh neon accents
-          targetColor = isActive
-            ? GRAY_DEEP.clone().lerp(ACCENT[modeIdx], xProgress)
-            : GRAY_MID;
-        }
-      }
-
-      state.color.lerp(targetColor, LERP_MAT);
-      mat.color.copy(state.color);
-
-      // ── Opacity (near-real/far-foggy) with stronger non-linear gradient ────────────────
       let baseOpacity = 0;
       if (j <= BLACK_INDEX) {
         const r = (BLACK_INDEX - j) / BLACK_INDEX;
-        baseOpacity = Math.pow(Math.max(0, 1.0 - r), 2.2); // Symmetrical non-linear fade for near-end
+        baseOpacity = Math.pow(Math.max(0, 1.0 - r), 2.2); 
       } else {
         const r = (j - BLACK_INDEX) / (TOTAL_CARDS - 1 - BLACK_INDEX);
-        baseOpacity = Math.pow(Math.max(0, 1.0 - r), 1.8); // Symmetrical non-linear fade for far-end
+        baseOpacity = Math.pow(Math.max(0, 1.0 - r), 1.8); 
+      }
+      // ─────────────────────────────────────────────────────────────────
+
+      // ── Color Handling & Opacity Fix (优雅隐褪，告别泥土褐) ──
+      // ── Color Handling & Opacity Fix (5张交互卡行为完全对齐) ──
+      // ── Color Handling & Opacity Fix (5张卡完全统一，0号不再有特权) ──
+      if (isInteractive) {
+        if (isActive) {
+          // 活跃激活状态：所有 5 张交互卡激活时，材质色全部保持纯白（#ffffff）
+          // 这样显卡渲染时才能 100% 无损暴露出它们各自在 Canvas 纹理里画好的原生鲜艳色彩！
+          state.color.set('#ffffff');
+          if (mat.color) mat.color.copy(state.color);
+          
+          mat.transparent = false;
+          mat.opacity = 1.0;
+        } else {
+          // 退回牌堆（非活跃）状态：所有 5 张卡统一归位纯白 (#ffffff)，防止相乘变暗
+          state.color.set('#ffffff');
+          if (mat.color) mat.color.copy(state.color);
+          
+          // 统一开启半透明消隐，让它们优雅地在牌堆里变成 40% 的半透明象牙白
+          mat.transparent = true;
+          mat.opacity = THREE.MathUtils.lerp(mat.opacity ?? 0, 0.40, 0.1);
+        }
+      } else {
+        // 其余 55 张纯背景装饰卡保持原有精美渐变逻辑
+        let targetColor = getBaseGrey(j);
+        state.color.lerp(targetColor, LERP_MAT);
+        if (mat.color) mat.color.copy(state.color);
+        if (mat.emissive) mat.emissive.lerp(state.color, LERP_MAT);
+
+        mat.transparent = true;
+        const depthOpacity = baseOpacity + (1.0 - baseOpacity) * xProgress;
+        state.opacity = THREE.MathUtils.lerp(state.opacity, isActive ? depthOpacity : baseOpacity, LERP_MAT);
+        mat.opacity = state.opacity;
       }
 
-      const depthOpacity = baseOpacity + (1.0 - baseOpacity) * xProgress;
-      state.opacity = THREE.MathUtils.lerp(state.opacity, isActive ? depthOpacity : baseOpacity, LERP_MAT);
-      mat.opacity   = state.opacity;
+      // ── Roughness (only for standard materials) ──
+      if ('roughness' in mat) {
+        const baseRoughness = j === BLACK_INDEX ? 0.45 : 0.65;
+        const targetRoughness = isActive
+          ? THREE.MathUtils.lerp(baseRoughness, 0.18, xProgress)
+          : baseRoughness;
+        state.roughness = THREE.MathUtils.lerp(state.roughness, targetRoughness, LERP_MAT);
+        mat.roughness   = state.roughness;
+        mat.metalness   = isActive ? THREE.MathUtils.lerp(0.02, 0.12, xProgress) : (j === BLACK_INDEX ? 0.22 : 0.02);
+      }
 
-      // ── Roughness (near-sharp/far-matte) ──────────────────────────
-      const baseRoughness = j === BLACK_INDEX ? 0.45 : 0.65;
-      const targetRoughness = isActive
-        ? THREE.MathUtils.lerp(baseRoughness, 0.18, xProgress)
-        : baseRoughness;
-      state.roughness = THREE.MathUtils.lerp(state.roughness, targetRoughness, LERP_MAT);
-      mat.roughness   = state.roughness;
-      mat.metalness   = isActive ? THREE.MathUtils.lerp(0.02, 0.12, xProgress) : (j === BLACK_INDEX ? 0.22 : 0.02);
-      mat.transparent = true;
+      // 统一 5 张交互卡的透明度与深度写入逻辑，防止穿帮
+      if (isInteractive) {
+        if ('transparent' in mat) {
+          mat.transparent = !isActive;
+          if ('depthWrite' in mat) mat.depthWrite = isActive;
+        }
+      } else {
+        if ('transparent' in mat) {
+          const shouldBeTransparent = state.opacity < 0.995;
+          mat.transparent = shouldBeTransparent;
+          if ('depthWrite' in mat) mat.depthWrite = !shouldBeTransparent;
+        }
+      }
 
-      // ── Snappy Text Opacity & 3D Nesting Ref Mutation ─────────────
+      // ── Roughness (only for standard materials) ──
+      if ('roughness' in mat) {
+        const baseRoughness = j === BLACK_INDEX ? 0.45 : 0.65;
+        const targetRoughness = isActive
+          ? THREE.MathUtils.lerp(baseRoughness, 0.18, xProgress)
+          : baseRoughness;
+        state.roughness = THREE.MathUtils.lerp(state.roughness, targetRoughness, LERP_MAT);
+        mat.roughness   = state.roughness;
+        mat.metalness   = isActive ? THREE.MathUtils.lerp(0.02, 0.12, xProgress) : (j === BLACK_INDEX ? 0.22 : 0.02);
+      }
+
+      // 为所有交互卡在非活跃时，或装饰卡透明时，正确写入 depthWrite
+      if (isInteractive) {
+        if ('transparent' in mat) {
+          mat.transparent = !isActive;
+          if ('depthWrite' in mat) mat.depthWrite = isActive;
+        }
+      } else {
+        if ('transparent' in mat) {
+          const shouldBeTransparent = state.opacity < 0.995;
+          mat.transparent = shouldBeTransparent;
+          if ('depthWrite' in mat) mat.depthWrite = !shouldBeTransparent;
+        }
+      }
+
+      // For all non-colored-interactive cards (black + non-interactive stack)
+      if (!(isInteractive && modeIdx !== 0)) {
+        if ('transparent' in mat) {
+          const shouldBeTransparent = state.opacity < 0.995;
+          mat.transparent = shouldBeTransparent;
+          if ('depthWrite' in mat) mat.depthWrite = !shouldBeTransparent;
+        }
+      }
+
+      // ── Snappy Text Opacity & 3D Nesting Ref Mutation ──
       if (isInteractive) {
         const textOpacity = Math.min(1, Math.max(0, (xProgress - 0.85) / 0.15));
         const labelEl = labelRefs.current[modeIdx];
         if (labelEl) {
           labelEl.style.opacity = String(textOpacity);
         }
+        const keyEl = keyRefs.current[modeIdx];
+        if (keyEl) {
+          keyEl.style.opacity = String(textOpacity);
+        }
 
-        // Write positions to cardXRef for external systems if necessary
         cardXRef.current[modeIdx] = state.pos.x;
       }
     }
@@ -339,30 +447,41 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef }) => {
 
         return (
           <mesh
-            key={j}
-            ref={el => { if (el) colorRefs.current[j] = el; }}
-            position={[
-              -RADIUS + RADIUS * Math.cos(d * BASE_DELTA_PHI),
-              0,
-              -RADIUS * Math.sin(d * BASE_DELTA_PHI)
-            ]}
-            castShadow={isBlack || isInteractive}
-            receiveShadow={isBlack}
-          >
+              key={j}
+              ref={el => { if (el) colorRefs.current[j] = el; }}
+              position={[
+                -RADIUS + RADIUS * Math.cos(d * BASE_DELTA_PHI),
+                0,
+                -RADIUS * Math.sin(d * BASE_DELTA_PHI)
+              ]}
+              receiveShadow={isBlack}
+            >
             <RoundedBox
               args={isBlack ? [CARD_W, CARD_H, CARD_D + 0.01] : [CARD_W, CARD_H, CARD_D]}
               radius={0.045}
               smoothness={5}
             >
-              <meshStandardMaterial
-                ref={el => { if (el) matRefs.current[j] = el as THREE.MeshStandardMaterial; }}
-                color={isBlack ? '#B8A880' : '#F0E8D0'}
-                map={isInteractive ? (textures[modeIdx] || null) : null}
-                roughness={isBlack ? 0.45 : 0.65}
-                metalness={isBlack ? 0.22 : 0.02}
-                transparent
-                opacity={initialOpacity}
-              />
+              {/* ─── 核心修正：5张可交互卡片（modeIdx 0 到 4）全部统一使用 meshBasicMaterial ─── */}
+              {isInteractive ? (
+                <meshBasicMaterial
+                  ref={el => { if (el) matRefs.current[j] = el as THREE.MeshBasicMaterial; }}
+                  map={textures[modeIdx] || null}
+                  transparent
+                  opacity={initialOpacity}
+                />
+              ) : (
+                /* 其余 55 张纯背景装饰卡继续使用标准的物理象牙白材质 */
+                <meshStandardMaterial
+                  ref={el => { if (el) matRefs.current[j] = el as THREE.MeshStandardMaterial; }}
+                  color="#F0E8D0"
+                  emissive={new THREE.Color('#F0E8D0')}
+                  emissiveIntensity={0.2}
+                  roughness={1.0}
+                  metalness={0.0}
+                  transparent
+                  opacity={initialOpacity}
+                />
+              )}
             </RoundedBox>
 
             {/* Receptor grid overlay for the black card anchor */}
@@ -385,7 +504,7 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef }) => {
                   pointerEvents="none"
                   style={{
                     width: '320px',
-                    fontFamily: "'Courier New', monospace",
+                    fontFamily: "Menlo, Monaco, 'Courier New', monospace",
                   }}
                 >
                   <div
@@ -445,6 +564,40 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef }) => {
                   </div>
                 </Html>
               </group>
+              )}
+
+              {isInteractive && (
+                <group position={[-0.07, 0.98, 0.05]}> 
+                  <Html
+                    transform
+                    distanceFactor={5.5}
+                    pointerEvents="none"
+                    style={{
+                      width: '140px',
+                      opacity: 0.5,
+                      fontFamily: "'Courier New', monospace",
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div ref={el => { keyRefs.current[modeIdx] = el; }} style={{
+                      display: 'inline-block',
+                      background: 'transparent',
+                      color: '#ffffff',
+                      fontSize: '24px',
+                      fontWeight: 900,
+                      padding: '8px 14px',
+                      borderRadius: '10px',
+                      letterSpacing: '2px',
+                      textAlign: 'center',
+                      opacity: 0,
+                      fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+                    }}>
+                      {CARD_KEYS[modeIdx]}
+                    </div>
+                  </Html>
+                </group>
             )}
           </mesh>
         );

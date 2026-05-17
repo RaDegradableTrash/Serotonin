@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import * as THREE from 'three';
 import { Canvas } from '@react-three/fiber';
 import { motion } from 'framer-motion';
 import Scene from './components/Scene';
@@ -6,11 +7,11 @@ import './index.css';
 
 // ── Vibrant fresh organic colors ─────────────────────────────────────────
 const modeColors: Record<number, string> = {
-  0: '#B8A880',   // Warm bronze brown
-  1: '#FE9580',   // Soft peach red
-  2: '#FDBF5C',   // Warm golden yellow
-  3: '#DDD33D',   // Fresh lime green
-  4: '#B0B8C0',   // Soft slate grey-blue
+  0: '#C0C0A8',
+  1: '#E9A254',
+  2: '#EEBF79',
+  3: '#07AFC1',
+  4: '#70D4D5',
 };
 
 const modeTitles: Record<number, string> = {
@@ -69,10 +70,11 @@ function App() {
 
       {/* 3D Canvas — full screen */}
       <Canvas
-        shadows
-        style={{ position: 'absolute', inset: 0 }}
-        gl={{ antialias: true, toneMapping: 2 }}
-        dpr={[1, 2]}
+        flat // 1. 开启扁平模式，禁止 Three.js 瞎调色
+        gl={{
+          toneMapping: THREE.NoToneMapping,        // 2. 彻底关闭色调映射（防止高饱和度粉色变暗发灰）
+          outputColorSpace: THREE.SRGBColorSpace, // 3. 强行规定输出色彩空间为标准网页 sRGB
+        }}
       >
         <Scene mode={mode} cardXRef={cardXRef} />
       </Canvas>
@@ -81,7 +83,7 @@ function App() {
       <motion.div
         initial={{ opacity: 0, scale: 0.85 }}
         animate={{
-          opacity: fullscreenActive ? 0.82 : 0,
+          opacity: fullscreenActive ? 0.45 : 0,
           scale: fullscreenActive ? 1.0 : 0.85,
         }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }} // Silky smooth easeOutExpo
@@ -116,7 +118,7 @@ function App() {
         {/* Title — top left */}
         <div style={{
           position: 'absolute', top: '26px', left: '28px',
-          fontFamily: "'Courier New', monospace",
+          fontFamily: "Menlo, Monaco, 'Courier New', monospace",
           fontSize: '11px', fontWeight: 'bold', letterSpacing: '3px', color: '#2c2520',
           userSelect: 'none',
         }}>
@@ -126,7 +128,7 @@ function App() {
         {/* Mode tabs — top right */}
         <div style={{
           position: 'absolute', top: '22px', right: '32px',
-          fontFamily: "'Courier New', monospace",
+          fontFamily: "Menlo, Monaco, 'Courier New', monospace",
           display: 'flex', gap: '12px', alignItems: 'center',
           pointerEvents: fullscreenActive ? 'none' : 'auto', // Disable clicks during fullscreen
         }}>
@@ -162,7 +164,7 @@ function App() {
         <div style={{
           position: 'absolute', bottom: '20px', left: '50%',
           transform: 'translateX(-50%)',
-          fontFamily: "'Courier New', monospace",
+          fontFamily: "Menlo, Monaco, 'Courier New', monospace",
           fontSize: '8.5px', letterSpacing: '3px', color: '#6e645e',
           userSelect: 'none', textAlign: 'center',
         }}>
