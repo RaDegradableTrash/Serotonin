@@ -1,182 +1,120 @@
-import React, { useState } from 'react';
-import { motion, useMotionValue, useTransform } from 'framer-motion';
-import { decryptData } from './utils/cryptoUtils';
-import { downloadVesicle, checkVesicleExists } from './utils/mockBackend';
+import React, { useRef, useEffect, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { RoundedBox, Html } from '@react-three/drei';
+import * as THREE from 'three';
 
-const RetrieveStation: React.FC = () => {
-  const [hz, setHz] = useState('');
-  const [code, setCode] = useState('');
-  const [status, setStatus] = useState<'idle' | 'checking' | 'ready' | 'downloading' | 'success' | 'error' | 'not_found'>('idle');
-  const [decryptedText, setDecryptedText] = useState('');
+interface RetrieveStationProps {
+  mode: number; isFocused: boolean; lockerStatus: 'idle' | 'error-jiggle' | 'success'; lockerStep: 'enter-hz' | 'enter-code' | 'action';
+  targetGrid: { col: number; row: number }; // 🌟 补上了！
+}
 
-  const x = useMotionValue(0);
-  const trackBg = useTransform(x, [0, 220], ['rgba(180,180,180,0.2)', 'rgba(58,126,255,0.3)']);
+const COLS = 38; const ROWS = 13; const DOOR_W = 0.55; const DOOR_H = 0.40; const GAP = 0.05;
 
-  const handleCheck = async () => {
-    if (!hz || !code) return;
-    setStatus('checking');
-    const exists = await checkVesicleExists(hz, code);
-    if (exists) setStatus('ready');
-    else { setStatus('not_found'); setTimeout(() => setStatus('idle'), 3000); }
-  };
+const RetrieveStation: React.FC<RetrieveStationProps> = ({ mode, isFocused, lockerStatus, lockerStep, targetGrid }) => {
+  if (mode !== 1 || !isFocused) return null;
 
-  const handleDragEnd = async (_e: any, info: any) => {
-    if (info.offset.x > 150 && status === 'ready') {
-      setStatus('downloading');
-      try {
-        const data = await downloadVesicle(hz, code);
-        if (data) {
-          const text = await decryptData(data.encryptedContent, data.iv, code);
-          setDecryptedText(text);
-          setStatus('success');
-        } else setStatus('error');
-      } catch { setStatus('error'); }
+  const targetCol = targetGrid.col;
+  const targetRow = targetGrid.row;
+
+  const [lidCurrentX, setLidCurrentX] = useState<number>(0);
+  const [lidTargetX, setLidTargetX] = useState<number>(0);
+  const [wallAlpha, setWallAlpha] = useState<number>(0);
+
+  const isDragging = useRef<boolean>(false);
+  const pointerStartCanvasX = useRef<number>(0);
+  const lidStartMeshX = useRef<number>(0);
+
+  const isUnlocked = lockerStatus === 'success';
+
+  useEffect(() => { setLidCurrentX(0); setLidTargetX(0); isDragging.current = false; }, [isFocused, targetGrid]);
+
+  useEffect(() => {
+    if (lockerStatus === 'success') setLidTargetX(0.48);
+    else if (lockerStatus === 'error-jiggle') setLidTargetX(0.12);
+    else setLidTargetX(0);
+  }, [lockerStatus]);
+
+  useFrame(() => {
+    const targetAlpha = isFocused ? 0.95 : 0.0;
+    if (Math.abs(wallAlpha - targetAlpha) > 0.01) setWallAlpha(THREE.MathUtils.lerp(wallAlpha, targetAlpha, 0.08));
+    if (!isDragging.current && Math.abs(lidCurrentX - lidTargetX) > 0.001) {
+      setLidCurrentX(THREE.MathUtils.lerp(lidCurrentX, lidTargetX, lockerStatus === 'error-jiggle' ? 0.24 : 0.12));
     }
+  });
+
+  const onDoorDown = (e: any) => { if (lockerStep !== 'action') return; e.stopPropagation(); isDragging.current = true; pointerStartCanvasX.current = e.clientX; lidStartMeshX.current = lidCurrentX; };
+  const onDoorMove = (e: any) => { if (!isDragging.current) return; e.stopPropagation(); let nextX = lidStartMeshX.current + (e.clientX - pointerStartCanvasX.current) * 0.004; setLidCurrentX(Math.max(0, Math.min(isUnlocked ? 0.48 : 0.12, nextX))); setLidTargetX(nextX); };
+  const onDoorUp = (e: any) => { if (!isDragging.current) return; e.stopPropagation(); isDragging.current = false; setLidTargetX(!isUnlocked ? 0 : (lidCurrentX > 0.24 ? 0.48 : 0)); };
+
+  const renderCabinetWall = () => {
+    const meshes: React.ReactNode[] = [];
+    const isActiveStep = lockerStep === 'enter-code' || lockerStep === 'action';
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const isTarget = (c === targetCol && r === targetRow);
+        const xPos = (c - (COLS - 1) / 2) * (DOOR_W + GAP) - 1.85;
+        const yPos = (r - (ROWS - 1) / 2) * (DOOR_H + GAP) + 0.05;
+
+        // 🌟 只有到达验证环节，它才会“显形”为天选活动格 🌟
+        if (isTarget && isActiveStep) {
+          meshes.push(
+            <group key={`target-box`} position={[xPos, yPos, 0]} onPointerDown={onDoorDown} onPointerMove={onDoorMove} onPointerUp={onDoorUp}>
+              <mesh position={[0, 0, 0.035]}><boxGeometry args={[DOOR_W + 0.015, DOOR_H + 0.015, 0.002]} /><meshBasicMaterial color="#ff3366" wireframe /></mesh>
+
+              {/* 后方内部黑匣：完全实心不透明 */}
+              <group position={[0, 0, -0.25]}>
+                <mesh position={[0, 0, -0.2]}><planeGeometry args={[DOOR_W - 0.02, DOOR_H - 0.02]} /><meshStandardMaterial color="#020202" transparent={false} /></mesh>
+                <mesh position={[-(DOOR_W - 0.02) / 2, 0, -0.1]} rotation={[0, Math.PI / 2, 0]}><planeGeometry args={[0.2, DOOR_H - 0.02]} /><meshStandardMaterial color="#050505" transparent={false} /></mesh>
+                <mesh position={[(DOOR_W - 0.02) / 2, 0, -0.1]} rotation={[0, -Math.PI / 2, 0]}><planeGeometry args={[0.2, DOOR_H - 0.02]} /><meshStandardMaterial color="#050505" transparent={false} /></mesh>
+                <mesh position={[0, (DOOR_H - 0.02) / 2, -0.1]} rotation={[Math.PI / 2, 0, 0]}><planeGeometry args={[DOOR_W - 0.02, 0.2]} /><meshStandardMaterial color="#080808" transparent={false} /></mesh>
+                <mesh position={[0, -(DOOR_H - 0.02) / 2, -0.1]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[DOOR_W - 0.02, 0.2]} /><meshStandardMaterial color="#030303" transparent={false} /></mesh>
+
+                {isUnlocked && lidCurrentX > 0.35 && (
+                  <mesh position={[0, 0, -0.05]} rotation={[0.4, 0.4, 0]}><boxGeometry args={[0.12, 0.12, 0.12]} /><meshBasicMaterial color="#70D4D5" wireframe /></mesh>
+                )}
+              </group>
+
+              {/* 滑动门板实体：完全实心防穿帮 */}
+              <group position={[lidCurrentX, 0, 0]}>
+                <mesh castShadow receiveShadow>
+                  <boxGeometry args={[DOOR_W, DOOR_H, 0.04]} />
+                  <meshStandardMaterial color="#eedcb8" roughness={0.28} metalness={0.15} transparent={false} />
+                </mesh>
+                <mesh position={[DOOR_W / 2 - 0.045, 0, 0.022]}>
+                  <boxGeometry args={[0.02, 0.16, 0.006]} />
+                  <meshBasicMaterial color={isUnlocked ? '#70D4D5' : lockerStatus === 'error-jiggle' ? '#ff3366' : '#E9A254'} />
+                </mesh>
+              </group>
+
+              <Html position={[0.48, 0, 0.03]} center distanceFactor={1.8}>
+                <div style={{ background: '#1a4968', border: '1px solid #ff3366', padding: '8px 12px', color: '#fff', fontSize: '9px', fontFamily: "'Courier New', monospace", boxShadow: '0 10px 25px rgba(0,0,0,0.5)', letterSpacing: '1px' }}>🔑 PIN ACCESS REQUESTED</div>
+              </Html>
+            </group>
+          );
+        } else {
+          // 🌟 核心机制：未定位前全都是一模一样的普通盒子，没有任何特殊待遇 🌟
+          meshes.push(
+            <mesh key={`door-${r}-${c}`} position={[xPos, yPos, 0]} castShadow receiveShadow>
+              <boxGeometry args={[DOOR_W, DOOR_H, 0.04]} />
+              <meshStandardMaterial
+                color={isActiveStep ? '#80878a' : '#eedcb8'}
+                roughness={0.28} metalness={0.15}
+                transparent={isActiveStep}
+                opacity={isActiveStep ? (wallAlpha * 0.25) : wallAlpha}
+              />
+            </mesh>
+          );
+        }
+      }
+    }
+    return meshes;
   };
 
   return (
-    <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-      {/* Header */}
-      <div>
-        <div style={{ fontFamily: "'Courier New', monospace", fontSize: '9px', letterSpacing: '3px', color: '#aaa', marginBottom: '4px' }}>
-          CH-A · SYNAPTIC RECEPTOR
-        </div>
-        <h2 style={{ fontFamily: "'Courier New', monospace", fontSize: '14px', letterSpacing: '4px', fontWeight: 'bold', color: '#111', margin: 0 }}>
-          RETRIEVE STATION
-        </h2>
-        <div style={{ width: '40px', height: '2px', background: '#ff3366', marginTop: '8px' }} />
-      </div>
-
-      {status === 'success' ? (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ fontFamily: "'Courier New', monospace", fontSize: '9px', letterSpacing: '2px', color: '#3a7eff', textAlign: 'center' }}>
-            ✓ MEMBRANE POTENTIAL MATCHED · SIGNAL ABSORBED · VESICLE DEGRADED
-          </div>
-          <div style={{
-            background: 'rgba(58, 126, 255, 0.06)',
-            border: '1px solid rgba(58,126,255,0.3)',
-            padding: '1rem',
-            fontFamily: "'Courier New', monospace",
-            fontSize: '12px',
-            color: '#111',
-            wordBreak: 'break-word',
-            lineHeight: 1.6,
-          }}>
-            {decryptedText}
-          </div>
-          <button className="chem-button" onClick={() => { setStatus('idle'); setDecryptedText(''); setHz(''); setCode(''); x.set(0); }}
-            style={{ background: '#3a7eff' }}>
-            RESET RECEPTOR
-          </button>
-        </motion.div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontFamily: "'Courier New', monospace", fontSize: '9px', letterSpacing: '2px', color: '#888' }}>
-                FREQUENCY (HZ)
-              </label>
-              <input className="chem-input" type="text" value={hz} onChange={e => setHz(e.target.value)}
-                disabled={status !== 'idle' && status !== 'not_found'} placeholder="99.5" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontFamily: "'Courier New', monospace", fontSize: '9px', letterSpacing: '2px', color: '#888' }}>
-                CODE
-              </label>
-              <input className="chem-input" type="password" value={code} onChange={e => setCode(e.target.value)}
-                disabled={status !== 'idle' && status !== 'not_found'} placeholder="••••" />
-            </div>
-          </div>
-
-          {(status === 'idle' || status === 'not_found') && (
-            <button className="chem-button" onClick={handleCheck} disabled={!hz || !code}
-              style={{ background: '#3a7eff' }}>
-              SCAN SYNAPSE
-            </button>
-          )}
-
-          {status === 'not_found' && (
-            <div style={{ fontFamily: "'Courier New', monospace", fontSize: '9px', letterSpacing: '2px', color: '#e8a820', textAlign: 'center' }}>
-              ⚠ NO VESICLE DETECTED AT THIS FREQUENCY
-            </div>
-          )}
-          {status === 'checking' && (
-            <div style={{ fontFamily: "'Courier New', monospace", fontSize: '9px', letterSpacing: '2px', color: '#888', textAlign: 'center' }}>
-              ◌ SCANNING SYNAPSE...
-            </div>
-          )}
-          {status === 'downloading' && (
-            <div style={{ fontFamily: "'Courier New', monospace", fontSize: '9px', letterSpacing: '2px', color: '#3a7eff', textAlign: 'center' }}>
-              ↓ EXTRACTING AND DECRYPTING PAYLOAD...
-            </div>
-          )}
-          {status === 'error' && (
-            <div style={{ fontFamily: "'Courier New', monospace", fontSize: '9px', color: '#ff3333', textAlign: 'center' }}>
-              ✕ DECRYPTION FAILED · CHEMICAL KEY MISMATCH
-              <br />
-              <button onClick={() => { setStatus('idle'); x.set(0); }} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', marginTop: '6px', fontSize: '10px', letterSpacing: '1px', textDecoration: 'underline' }}>
-                RESET
-              </button>
-            </div>
-          )}
-          {status === 'ready' && (
-            <div>
-              <label style={{ display: 'block', marginBottom: '8px', fontFamily: "'Courier New', monospace", fontSize: '9px', letterSpacing: '2px', color: '#3a7eff', textAlign: 'center' }}>
-                VESICLE DETECTED · DRAG HANDLE TO OPEN CHANNEL
-              </label>
-              <motion.div style={{
-                height: '52px',
-                background: trackBg,
-                border: '1px solid rgba(58,126,255,0.3)',
-                borderRadius: '26px',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <motion.div
-                  drag="x"
-                  dragConstraints={{ left: 0, right: 310 }}
-                  dragElastic={0.05}
-                  onDragEnd={handleDragEnd}
-                  whileTap={{ scale: 0.95 }}
-                  style={{
-                    position: 'absolute',
-                    top: '4px',
-                    left: '4px',
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '22px',
-                    background: '#3a7eff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'grab',
-                    fontFamily: "'Courier New', monospace",
-                    fontSize: '18px',
-                    color: 'white',
-                    x,
-                  }}
-                >
-                  ↔
-                </motion.div>
-                <div style={{
-                  position: 'absolute',
-                  right: '16px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  fontFamily: "'Courier New', monospace",
-                  fontSize: '9px',
-                  letterSpacing: '2px',
-                  color: '#999',
-                  pointerEvents: 'none',
-                }}>
-                  SLIDE TO ABSORB ➔
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
+    <group position={[0.5, -0.2, 0.2]} rotation={[0.15, -0.4, 0]} visible={wallAlpha > 0.02}>
+      {renderCabinetWall()}
+    </group>
   );
 };
 

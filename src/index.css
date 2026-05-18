@@ -22,7 +22,9 @@
   padding: 0;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -94,4 +96,35 @@ body {
   color: var(--chem-primary);
   letter-spacing: 2px;
   font-family: 'Courier New', monospace;
+}
+
+/* 🛠️ 覆盖优化平铺功能控制面板样式 */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(0px) !important;
+  -webkit-backdrop-filter: blur(0px) !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0px !important;
+}
+
+/* 规范化 3D 嵌套投影在立方体内部的 input 标签底座 */
+.glass-panel input.chem-input {
+  border-radius: 0px !important;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(44, 37, 32, 0.12);
+  color: #111;
+}
+
+/* 针对 3D Canvas 内部投影出来的 HTML 文本域进行强制去边框 */
+canvas+div input,
+canvas+div button {
+  font-family: 'Courier New', monospace;
+}
+
+/* 隐藏 3D 投影控制台的原生输入框聚焦高光，防止出现黄色网页光晕 */
+canvas+div input:focus {
+  outline: none;
+  border-color: #EEBF79 !important;
+  box-shadow: none !important;
 }
