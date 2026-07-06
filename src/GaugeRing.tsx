@@ -15,7 +15,7 @@ const modeAngles: Record<number, number> = {
 };
 
 const TICK_COUNT = 60;
-const RADIUS = 1.4;
+const RADIUS = 3.4;
 
 const GaugeRing: React.FC<GaugeRingProps> = ({ mode }) => {
   const groupRef = useRef<THREE.Group>(null!);
@@ -65,7 +65,7 @@ const GaugeRing: React.FC<GaugeRingProps> = ({ mode }) => {
   arrowShape.closePath();
 
   return (
-    <group position={[4.2, 0, -1]} ref={groupRef}>
+    <group position={[8.2, 0, -1]} ref={groupRef}>
       {ticks}
       {/* Pointer triangle */}
       <mesh>

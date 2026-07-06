@@ -8,7 +8,6 @@ const CARD_W = 0.82;
 const CARD_H = 2.70;
 const CARD_D = 0.077;
 
-const GRAY_MID = new THREE.Color('#F7F7EA');
 const ACCENT: Record<number, THREE.Color> = {
   0: new THREE.Color('#C0C0A8'),
   1: new THREE.Color('#E9A254'),
@@ -34,8 +33,8 @@ const RADIUS = 8.5;
 const BASE_DELTA_PHI = 0.045;
 const ACTIVE_X = 1.25;
 
-const LERP_ACTIVE = 0.09;
-const LERP_REST = 0.10;
+const LERP_ACTIVE = 0.135;
+const LERP_REST = 0.15;
 const LERP_MAT = 0.08;
 
 interface CardState {
@@ -68,7 +67,7 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
   };
 
   const textures = React.useMemo(() => {
-    return CARD_COLORS.map((colorHex, idx) => {
+    return CARD_COLORS.map((colorHex) => {
       const canvas = document.createElement('canvas');
       canvas.width = 256; canvas.height = 512;
       const ctx = canvas.getContext('2d');
@@ -84,7 +83,9 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
   const cardStates = useRef<CardState[]>(
     Array.from({ length: TOTAL_CARDS }).map((_, j) => {
       const d = j - BLACK_INDEX;
-      let baseOpacity = j <= BLACK_INDEX ? Math.pow(Math.max(0, 1.0 - (BLACK_INDEX - j) / BLACK_INDEX), 2.2) : Math.pow(Math.max(0, 1.0 - (j - BLACK_INDEX) / (TOTAL_CARDS - 1 - BLACK_INDEX)), 1.8);
+      let baseOpacity = j <= BLACK_INDEX
+        ? Math.pow(Math.max(0, 1.0 - (BLACK_INDEX - j) / BLACK_INDEX), 2.2)
+        : Math.pow(Math.max(0, 1.0 - (j - BLACK_INDEX) / (TOTAL_CARDS - 1 - BLACK_INDEX)), 1.8);
       return {
         pos: new THREE.Vector3(-RADIUS + RADIUS * Math.cos(d * BASE_DELTA_PHI), 0, -RADIUS * Math.sin(d * BASE_DELTA_PHI)),
         color: new THREE.Color('#ffffff'),
@@ -126,8 +127,8 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
       else if (j < activeIdx) swallowOffset = 0.5 * activeProgress;
 
       const dist = Math.abs(j - activeIdx);
-      const localDt = dt - dist / 45.0;
-      const localPulse = localDt < 0 ? 0 : 0.85 * Math.sin(2 * Math.PI * 1.25 * localDt) * Math.exp(-3.5 * localDt);
+      const localDt = dt - dist / 37.5;
+      const localPulse = localDt < 0 ? 0 : 1.45 * Math.sin(2 * Math.PI * 1.25 * localDt) * Math.exp(-3.5 * localDt);
       const phi = (d + swallowOffset) * BASE_DELTA_PHI * (1.0 + localPulse);
 
       const restX = -RADIUS + RADIUS * Math.cos(phi);
@@ -137,8 +138,6 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
 
       let targetX = isActive ? restX + ACTIVE_X : restX;
       let targetZ = isActive ? restZ + 0.11 : restZ;
-
-      // 🌟 核心剔除：彻底删除原本在这里的 SHIFT_OUT_X 强制突变平移，维护初始位置绝对不动 🌟
 
       const target = new THREE.Vector3(targetX, 0, targetZ);
       state.pos.lerp(target, isActive ? LERP_ACTIVE : LERP_REST);
@@ -154,7 +153,6 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
         } else {
           state.color.set('#ffffff'); if (mat.color) mat.color.copy(state.color);
           mat.transparent = true;
-          // 推进取件时，其余卡片优雅进行虚化透明淡出
           const targetRestOpacity = (mode === 1 && isFocused) ? 0.05 : 0.40;
           mat.opacity = THREE.MathUtils.lerp(mat.opacity ?? 0, targetRestOpacity, 0.1);
         }
@@ -162,7 +160,6 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
         let targetColor = getBaseGrey(j); state.color.lerp(targetColor, LERP_MAT);
         if (mat.color) mat.color.copy(state.color);
         mat.transparent = true;
-        // 推进取件时，装饰背景卡牌同步淡出
         const targetRestOpacity = (mode === 1 && isFocused) ? 0.02 : state.opacity;
         mat.opacity = THREE.MathUtils.lerp(mat.opacity ?? 0, targetRestOpacity, 0.1);
       }

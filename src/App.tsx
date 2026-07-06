@@ -8,11 +8,7 @@ import UploadStation from './UploadStation';
 import './index.css';
 
 const modeColors: Record<number, string> = {
-  0: '#C0C0A8',
-  1: '#E9A254',
-  2: '#EEBF79',
-  3: '#07AFC1',
-  4: '#70D4D5',
+  0: '#C0C0A8', 1: '#E9A254', 2: '#EEBF79', 3: '#07AFC1', 4: '#70D4D5',
 };
 
 function App() {
@@ -22,20 +18,48 @@ function App() {
   const [lockerStep, setLockerStep] = useState<'enter-hz' | 'enter-code' | 'action'>('enter-hz');
   const [lockerStatus, setLockerStatus] = useState<'idle' | 'error-jiggle' | 'success'>('idle');
 
-  // 🌟 核心突破：设立全局随机柜门指针状态
-  const [targetGrid, setTargetGrid] = useState<{ col: number; row: number }>({ col: 22, row: 6 });
+  // 🌟 初始化基准：默认放置在安全的中央腹地
+  const [targetGrid, setTargetGrid] = useState<{ col: number; row: number; resetNonce: number }>({ col: 19, row: 6, resetNonce: 0 });
 
+  const sessionLockerMap = useRef<Record<string, { col: number; row: number }>>({});
+  const [subMode, setSubMode] = useState<'menu' | 'upload' | 'retrieve'>('menu');
   const cardXRef = useRef<number[]>([0, 0, 0, 0, 0]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const activeEl = document.activeElement;
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) return;
-    if (e.key === '~' || e.key === '`') { setMode(0); setIsFocused(false); }
-    if (e.key === '1') { setMode(1); setIsFocused(false); }
-    if (e.key === '2') { setMode(2); setIsFocused(false); }
-    if (e.key === '3') { setMode(3); setIsFocused(false); }
-    if (e.key === '4') { setMode(4); setIsFocused(false); }
-  }, []);
+    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+      if (e.key === 'Escape') (activeEl as HTMLInputElement).blur();
+      else return;
+    }
+
+    if (e.key === 'Escape') {
+      if (mode === 1 && isFocused) {
+        if (lockerStep === 'action' || lockerStep === 'enter-code') {
+          setLockerStep('enter-hz');
+          setLockerStatus('idle');
+        } else if (lockerStep === 'enter-hz') {
+          setIsFocused(false);
+          setSubMode('menu');
+        }
+      }
+      return;
+    }
+
+    let targetMode = -1;
+    if (e.key === '~' || e.key === '`') targetMode = 0;
+    if (e.key === '1') targetMode = 1;
+    if (e.key === '2') targetMode = 2;
+    if (e.key === '3') targetMode = 3;
+    if (e.key === '4') targetMode = 4;
+
+    if (targetMode !== -1) {
+      setMode(targetMode);
+      setIsFocused(false);
+      setSubMode('menu');
+      setLockerStep('enter-hz');
+      setLockerStatus('idle');
+    }
+  }, [mode, isFocused, lockerStep]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -44,24 +68,19 @@ function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', background: '#e8e8ea' }}>
-      <Canvas
-        flat
-        gl={{ toneMapping: THREE.NoToneMapping, outputColorSpace: THREE.SRGBColorSpace }}
-      >
+      <Canvas flat gl={{ toneMapping: THREE.NoToneMapping, outputColorSpace: THREE.SRGBColorSpace }}>
         <Scene
           mode={mode}
           cardXRef={cardXRef}
           isFocused={isFocused}
-          setIsFocused={setIsFocused}
           lockerStatus={lockerStatus}
           lockerStep={lockerStep}
-          targetGrid={targetGrid} // 🌟 传导天选动态随机格坐标给 Scene
+          targetGrid={targetGrid}
         />
       </Canvas>
 
-      {/* 控制台面板 */}
       <div style={{
-        position: 'absolute', top: '15%', right: '6%', width: '420px', zIndex: 5,
+        position: 'absolute', top: '15%', right: '6%', width: '420px', zIndex: 15,
         pointerEvents: (mode === 1) ? 'auto' : 'none',
         opacity: (mode === 1) ? 1 : 0,
         transform: (mode === 1) ? 'translateX(0px)' : 'translateX(100px)',
@@ -75,18 +94,40 @@ function App() {
               setLockerStep={setLockerStep}
               lockerStatus={lockerStatus}
               setLockerStatus={setLockerStatus}
-              onTriggerRandomLocate={() => {
-                // 🌟 点击“寻找”时，随机抽取一扇门（列：16~27，行：4~8）
-                const randCol = Math.floor(Math.random() * 12) + 16;
-                const randRow = Math.floor(Math.random() * 5) + 4;
-                setTargetGrid({ col: randCol, row: randRow });
+              subMode={subMode}
+              setSubMode={setSubMode}
+              onEnterRetrieveReset={() => {
+                sessionLockerMap.current = {};
+              }}
+              onComputeGridByLockerId={(lockerIdText) => {
+                if (!lockerIdText) return;
+
+                if (sessionLockerMap.current[lockerIdText]) {
+                  const cached = sessionLockerMap.current[lockerIdText];
+                  setTargetGrid({ col: cached.col, row: cached.row, resetNonce: Math.random() });
+                } else {
+                  // 🌟🌟 核心安全机制：长墙规模为 COLS=38, ROWS=13
+                  // 强制去除最顶部、最底部的 10 行 ➔ ROWS 允许的安全跨度只有唯一一行：[3 ~ 3] (即中央第 3 行，0 基准标识)
+                  // 强制去除最左侧、最右侧的 10 列 ➔ COLS 允许的安全范围收窄截断为：[10 ~ 27]
+                  // 这确保了任何随机目标格的周围，都严严实实合围平铺着至少 10 层以上的背景块，彻底绝杀边缘未加载穿帮！ 🌟🌟
+                  const safeMinCol = 10;
+                  const safeMaxCol = 27;
+                  const randCol = Math.floor(Math.random() * (safeMaxCol - safeMinCol + 1)) + safeMinCol;
+
+                  const safeMinRow = 3;
+                  const safeMaxRow = 3;
+                  const randRow = Math.floor(Math.random() * (safeMaxRow - safeMinRow + 1)) + safeMinRow;
+
+                  const newRandomGrid = { col: randCol, row: randRow };
+                  sessionLockerMap.current[lockerIdText] = newRandomGrid;
+                  setTargetGrid({ col: randCol, row: randRow, resetNonce: Math.random() });
+                }
               }}
             />
           )}
         </AnimatePresence>
       </div>
 
-      {/* HUD 导航 */}
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}>
         <div style={{ position: 'absolute', top: '26px', left: '28px', fontFamily: "Menlo, Monaco, 'Courier New', monospace", fontSize: '11px', fontWeight: 'bold', letterSpacing: '3px', color: '#2c2520' }}>
           SEROTONIN PROTOCOL
@@ -100,7 +141,7 @@ function App() {
                 animate={{ color: isActive ? modeColors[idx] : '#9e948e', fontWeight: isActive ? 'bold' : 'normal', fontSize: isActive ? '12px' : '10px' }}
                 transition={{ duration: 0.25 }}
                 style={{ cursor: 'pointer', letterSpacing: '1px', userSelect: 'none' }}
-                onClick={() => { setMode(idx); setIsFocused(false); setLockerStep('enter-hz'); setLockerStatus('idle'); }}
+                onClick={() => { setMode(idx); setIsFocused(false); setSubMode('menu'); setLockerStep('enter-hz'); setLockerStatus('idle'); }}
               >
                 [{tabLabel}]
               </motion.span>
