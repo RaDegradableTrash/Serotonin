@@ -102,7 +102,7 @@ const FluidBackground: React.FC<FluidBackgroundProps> = ({ accentColor }) => {
   const uniforms = useMemo(() => ({
     uTime: { value: 0 },
     uColor: { value: accentColor.clone() },
-  }), []);
+  }), [accentColor]);
 
   useFrame(({ clock }) => {
     if (matRef.current) {
@@ -116,7 +116,7 @@ const FluidBackground: React.FC<FluidBackgroundProps> = ({ accentColor }) => {
     <mesh 
       position={[0, 0, -25.0]} 
       rotation={[0, 0, 0]} 
-      scale={[120, 80, 1]}
+      scale={[240, 180, 1]}
     >
       <planeGeometry args={[1, 1]} />
       <shaderMaterial

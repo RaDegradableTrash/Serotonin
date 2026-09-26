@@ -20,11 +20,11 @@ const CARD_COLORS = ['#C0C0A8', '#E9A254', '#EEBF79', '#07AFC1', '#70D4D5'];
 const CARD_KEYS = ['~', '1', '2', '3', '4'];
 
 const CARD_LABELS = [
-  { tag: 'NUCLEUS: MASTER', title: 'SETTINGS', sub: 'Master Synergy Control', freq: 'SYSTEM ANCHOR' },
-  { tag: 'ADIOS: TYPE-A', title: 'CHEMICAL SYNAPSE', sub: 'Vesicle Upload', freq: 'FREQ: 99.5 HZ' },
-  { tag: 'STANDBY: C', title: 'HORMONE NOTE', sub: 'Cellular Reflex', freq: 'AWAITING IMPULSE' },
-  { tag: 'BIEN: TYPE-B', title: 'ELECTRICAL SYNAPSE', sub: 'Gap Junction / P2P', freq: 'FREQ: ACTIVE' },
-  { tag: 'STANDBY: D', title: 'ACTION POTENTIAL', sub: 'Enzyme Potential', freq: 'AWAITING IMPULSE' },
+  { tag: 'SPACE: HOME', title: 'HOME', sub: 'Your everyday workspace', freq: 'SYSTEM ANCHOR' },
+  { tag: 'SPACE: CALENDAR', title: 'CALENDAR', sub: 'Make room for what matters', freq: 'YOUR TIME' },
+  { tag: 'SPACE: TASKS', title: 'TO DO', sub: 'One thing at a time', freq: 'TAKE ACTION' },
+  { tag: 'SPACE: EMPTY', title: 'OPEN SPACE', sub: 'Room for your next idea', freq: 'AWAITING IMPULSE' },
+  { tag: 'SPACE: MUSIC', title: 'MUSIC', sub: 'Find your rhythm', freq: 'NOW LISTENING' },
 ];
 
 const TOTAL_CARDS = 60;
@@ -48,13 +48,16 @@ interface MenuCardsProps {
   mode: number;
   cardXRef: React.MutableRefObject<number[]>;
   isFocused: boolean;
+  onSelect: (mode: number) => void;
+  surfaceRef: React.RefObject<THREE.Group | null>;
 }
 
-const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
+const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused, onSelect, surfaceRef }) => {
   const colorRefs = useRef<THREE.Mesh[]>([]);
   const matRefs = useRef<THREE.Material[]>([]);
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const keyRefs = useRef<(HTMLDivElement | null)[]>([]);
+
 
   const getBaseGrey = (j: number) => {
     if (j === BLACK_INDEX) return new THREE.Color('#C0C0A8');
@@ -83,7 +86,7 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
   const cardStates = useRef<CardState[]>(
     Array.from({ length: TOTAL_CARDS }).map((_, j) => {
       const d = j - BLACK_INDEX;
-      let baseOpacity = j <= BLACK_INDEX
+      const baseOpacity = j <= BLACK_INDEX
         ? Math.pow(Math.max(0, 1.0 - (BLACK_INDEX - j) / BLACK_INDEX), 2.2)
         : Math.pow(Math.max(0, 1.0 - (j - BLACK_INDEX) / (TOTAL_CARDS - 1 - BLACK_INDEX)), 1.8);
       return {
@@ -103,12 +106,12 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
     if (prevMode.current !== mode) {
       const oldMode = prevMode.current; const oldActive = BLACK_INDEX + oldMode; const newActive = BLACK_INDEX + mode;
       prevMode.current = mode; switchTime.current = t;
-      const prevMat = matRefs.current[oldActive] as any; const prevMesh = colorRefs.current[oldActive];
-      if (prevMat) { try { prevMat.transparent = true; prevMat.depthWrite = false; } catch (e) { } }
-      if (prevMesh) { try { prevMesh.renderOrder = 0; } catch (e) { } }
-      const newMat = matRefs.current[newActive] as any; const newMesh = colorRefs.current[newActive];
-      if (newMat) { try { newMat.transparent = false; newMat.opacity = 1.0; newMat.depthWrite = true; } catch (e) { } }
-      if (newMesh) { try { newMesh.renderOrder = 2000; } catch (e) { } }
+      const prevMat = matRefs.current[oldActive] as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial; const prevMesh = colorRefs.current[oldActive];
+      if (prevMat) { prevMat.transparent = true; prevMat.depthWrite = false; }
+      if (prevMesh) { prevMesh.renderOrder = 0; }
+      const newMat = matRefs.current[newActive] as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial; const newMesh = colorRefs.current[newActive];
+      if (newMat) { newMat.transparent = false; newMat.opacity = 1.0; newMat.depthWrite = true; }
+      if (newMesh) { newMesh.renderOrder = 2000; }
     }
 
     const activeIdx = BLACK_INDEX + mode;
@@ -118,7 +121,7 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
     const dt = t - switchTime.current;
 
     for (let j = 0; j < TOTAL_CARDS; j++) {
-      const mesh = colorRefs.current[j]; const mat = matRefs.current[j] as any;
+      const mesh = colorRefs.current[j]; const mat = matRefs.current[j] as THREE.MeshBasicMaterial | THREE.MeshStandardMaterial;
       if (!mesh || !mat) continue;
 
       const d = j - BLACK_INDEX;
@@ -136,14 +139,19 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
       const isInteractive = j >= 20 && j <= 24; const modeIdx = j - 20; const isActive = isInteractive && modeIdx === mode;
       const state = cardStates.current[j]; if (!state) continue;
 
-      let targetX = isActive ? restX + ACTIVE_X : restX;
-      let targetZ = isActive ? restZ + 0.11 : restZ;
+      const targetX = isActive ? restX + ACTIVE_X : restX;
+      const targetZ = isActive ? restZ + 0.11 : restZ;
 
       const target = new THREE.Vector3(targetX, 0, targetZ);
       state.pos.lerp(target, isActive ? LERP_ACTIVE : LERP_REST);
       mesh.position.copy(state.pos);
       mesh.rotation.y = phi;
 
+      if (isActive && surfaceRef.current) {
+        mesh.updateWorldMatrix(true, false);
+        surfaceRef.current.matrix.copy(mesh.matrixWorld);
+        surfaceRef.current.matrixWorldNeedsUpdate = true;
+      }
       const xProgress = Math.min(1, Math.max(0, (state.pos.x - restX) / ACTIVE_X));
 
       if (isInteractive) {
@@ -157,7 +165,7 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
           mat.opacity = THREE.MathUtils.lerp(mat.opacity ?? 0, targetRestOpacity, 0.1);
         }
       } else {
-        let targetColor = getBaseGrey(j); state.color.lerp(targetColor, LERP_MAT);
+        const targetColor = getBaseGrey(j); state.color.lerp(targetColor, LERP_MAT);
         if (mat.color) mat.color.copy(state.color);
         mat.transparent = true;
         const targetRestOpacity = (mode === 1 && isFocused) ? 0.02 : state.opacity;
@@ -178,10 +186,10 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
     <group>
       {Array.from({ length: TOTAL_CARDS }).map((_, idx) => {
         const j = TOTAL_CARDS - 1 - idx; const d = j - BLACK_INDEX; const isInteractive = j >= 20 && j <= 24; const modeIdx = j - 20; const isBlack = j === BLACK_INDEX;
-        let initialOpacity = j <= BLACK_INDEX ? Math.pow(Math.max(0, 1.0 - (BLACK_INDEX - j) / BLACK_INDEX), 2.2) : Math.pow(Math.max(0, 1.0 - (j - BLACK_INDEX) / (TOTAL_CARDS - 1 - BLACK_INDEX)), 1.8);
+        const initialOpacity = j <= BLACK_INDEX ? Math.pow(Math.max(0, 1.0 - (BLACK_INDEX - j) / BLACK_INDEX), 2.2) : Math.pow(Math.max(0, 1.0 - (j - BLACK_INDEX) / (TOTAL_CARDS - 1 - BLACK_INDEX)), 1.8);
 
         return (
-          <mesh key={j} ref={el => { if (el) colorRefs.current[j] = el; }} position={[-RADIUS + RADIUS * Math.cos(d * BASE_DELTA_PHI), 0, -RADIUS * Math.sin(d * BASE_DELTA_PHI)]}>
+          <mesh onClick={event => { if (isInteractive) { event.stopPropagation(); onSelect(modeIdx); } }} key={j} ref={el => { if (el) colorRefs.current[j] = el; }} position={[-RADIUS + RADIUS * Math.cos(d * BASE_DELTA_PHI), 0, -RADIUS * Math.sin(d * BASE_DELTA_PHI)]}>
             <RoundedBox args={isBlack ? [CARD_W, CARD_H, CARD_D + 0.01] : [CARD_W, CARD_H, CARD_D]} radius={0.045} smoothness={5}>
               {isInteractive ? (
                 <meshBasicMaterial ref={el => { if (el) matRefs.current[j] = el as THREE.MeshBasicMaterial; }} map={textures[modeIdx] || null} transparent opacity={initialOpacity} />
@@ -193,17 +201,15 @@ const MenuCards: React.FC<MenuCardsProps> = ({ mode, cardXRef, isFocused }) => {
             {isInteractive && (
               <>
                 <group position={[-0.12, 0.98, CARD_D / 2 + 0.01]}>
-                  <Html transform distanceFactor={5.5} pointerEvents="none">
-                    <div ref={el => { keyRefs.current[modeIdx] = el; }} style={{ fontFamily: "Menlo, Monaco, 'Courier New', monospace", color: '#ffffff', fontSize: '32px', fontWeight: 900, opacity: 0 }}>{CARD_KEYS[modeIdx]}</div>
+                  <Html transform distanceFactor={5.5} pointerEvents="none" zIndexRange={[2, 0]}>
+                    <div aria-hidden={modeIdx !== mode} ref={el => { keyRefs.current[modeIdx] = el; }} style={{ fontFamily: "Menlo, Monaco, 'Courier New', monospace", color: '#ffffff', fontSize: '32px', fontWeight: 900, opacity: 0 }}>{CARD_KEYS[modeIdx]}</div>
                   </Html>
                 </group>
-                <group position={[2.55, -0.65, CARD_D / 2 + 0.01]}>
-                  <Html transform distanceFactor={5.5} pointerEvents="none">
-                    <div ref={el => { labelRefs.current[modeIdx] = el; }} style={{ fontFamily: "Menlo, Monaco, 'Courier New', monospace", width: '280px', display: 'flex', flexDirection: 'column', gap: '6px', opacity: 0, color: '#2c2520' }}>
+                <group position={[0.6, -1.9, CARD_D / 2 + 0.01]}>
+                  <Html transform distanceFactor={5.5} pointerEvents="none" zIndexRange={[2, 0]}>
+                    <div aria-hidden={modeIdx !== mode} ref={el => { labelRefs.current[modeIdx] = el; }} style={{ fontFamily: "Menlo, Monaco, 'Courier New', monospace", width: '280px', display: 'flex', flexDirection: 'column', gap: '6px', opacity: 0, color: '#2c2520' }}>
                       <span style={{ alignSelf: 'flex-start', background: CARD_COLORS[modeIdx], color: '#ffffff', fontSize: '9px', fontWeight: 'bold', padding: '3px 8px', borderRadius: '1px', letterSpacing: '1.5px' }}>{CARD_LABELS[modeIdx].tag}</span>
                       <h1 style={{ fontSize: '19px', fontWeight: 'bold', letterSpacing: '2px', margin: '2px 0 0 0' }}>{CARD_LABELS[modeIdx].title}</h1>
-                      <span style={{ fontSize: '11px', color: '#6e645e' }}>{CARD_LABELS[modeIdx].sub}</span>
-                      <span style={{ fontSize: '9px', color: '#a09690', letterSpacing: '1px' }}>{CARD_LABELS[modeIdx].freq}</span>
                     </div>
                   </Html>
                 </group>
