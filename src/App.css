@@ -47,3 +47,28 @@ body{background:#e8e8ea}.app-shell{--space-accent:#a2a083;min-height:100vh}.mode
 .shared-plane .workspace-main .tasks-page,.shared-plane .workspace-main .music-page,.shared-plane .workspace-main .reserved-page{position:relative;left:auto!important;right:auto;top:auto;margin:0;width:100%;height:100%;min-height:0;max-height:none;max-width:none;padding:28px;background:#f8f2df66;border:1px solid #fff9e575;backdrop-filter:none;overflow:auto;border-radius:3px}.shared-plane .workspace-main .reserved-page{background:none;border:1px solid #b5c9bb24}.shared-plane .workspace-main h1{font-size:24px}.shared-plane .music-layout{grid-template-columns:1fr 1fr}.shared-plane .record{width:210px;height:210px}.shared-plane .task-add{flex-wrap:nowrap}.shared-plane .task-add>input:first-of-type{min-width:0}.shared-plane .schedule-button{font-size:11px;gap:5px;padding:8px}.shared-plane .task-content input{font-size:14px}.shared-plane .task-content small{font-size:11px}.shared-plane .task-filters button{font-size:13px}.shared-plane .task-summary{margin:25px 0}.shared-plane .task-summary>span{font-size:13px}.shared-plane .player-card p{font-size:12px}.shared-plane .playlist-card label{font-size:12px}.shared-plane .track-row{font-size:13px}
 @keyframes plane-reveal{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:translateX(0)}}@keyframes day-arrive{from{opacity:0;translate:0 8px}to{opacity:1;translate:0 0}}@keyframes day-arrive-reverse{from{opacity:0;translate:0 -8px}to{opacity:1;translate:0 0}}
 @media(prefers-reduced-motion:reduce){.shared-plane *{animation:none!important}}
+
+/* Full-day calendar: transparent, fitted to the label plane's viewport extent. */
+.shared-plane.calendar-surface .workspace-main .calendar-page{background:none;border:0;box-shadow:none;backdrop-filter:none;overflow:visible}
+.calendar-surface .calendar-sidebar,.calendar-surface .calendar-main,.calendar-surface .calendar-toolbar,.calendar-surface .week-header,.calendar-surface .all-day-row,.calendar-surface .calendar-footer,.calendar-surface .month-grid,.calendar-surface .month-cell{background:none!important;box-shadow:none;backdrop-filter:none}
+.calendar-surface .calendar-sidebar{border:0;padding-top:80px;scrollbar-width:none}
+.calendar-surface .calendar-main{overflow:visible}
+.calendar-surface .calendar-toolbar{min-height:42px;padding:2px 10px}
+.calendar-surface .week-header{min-height:38px;padding-right:0}
+.calendar-surface .week-header b{font-size:17px}.calendar-surface .week-header small{font-size:10px}
+.calendar-surface .all-day-row{min-height:18px;max-height:60px}
+.calendar-surface .calendar-footer{min-height:18px;padding:2px 8px;font-size:9px}
+.calendar-surface .timeline-frame{overflow:visible}
+.calendar-surface .week-scroll{overflow:hidden;scrollbar-width:none;touch-action:none}
+.calendar-surface ::-webkit-scrollbar{display:none}
+.calendar-surface .week-grid{height:300%;min-height:0}
+.calendar-surface .day-segment,.calendar-surface .hour-day{height:calc(100% / 3)}
+.calendar-surface .hour-labels{height:100%}
+.calendar-surface .hour-labels span,.calendar-surface .hour-cell{height:calc(100% / 24);min-height:0}
+.calendar-surface .hour-cell{background:none;border-bottom-color:#8f836529}
+.calendar-surface .today-column{background:none}
+.calendar-surface .time-event{min-height:0;padding:0 3px;border-radius:2px;overflow:hidden}
+.calendar-surface .time-event strong{font-size:10px;line-height:1.1}.calendar-surface .time-event small{display:none}
+.calendar-surface .time-selection{min-height:0}.calendar-surface .time-selection span{padding:0 2px}
+.day-end-label{position:absolute;left:0;bottom:-9px;font-size:10px;color:#8c846f;pointer-events:none}
+.calendar-surface .month-grid{grid-template-rows:repeat(6,minmax(0,1fr))}

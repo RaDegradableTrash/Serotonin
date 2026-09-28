@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import MenuCards from './MenuCards';
@@ -8,6 +8,31 @@ import FluidBackground from './FluidBackground';
 import GaugeRing from './GaugeRing';
 
 const colors = ['#C0C0A8', '#E9A254', '#EEBF79', '#07AFC1', '#70D4D5'].map(value => new THREE.Color(value));
+function WorkspaceSurface({ mode, children }: { mode: number; children: ReactNode }) {
+  const group = useRef<THREE.Group>(null);
+  const element = useRef<HTMLDivElement>(null);
+  const { camera, size } = useThree();
+  useFrame(() => {
+    if (!group.current || !element.current) return;
+    const node = group.current;
+    if (mode !== 1) { node.position.y = .2; element.current.style.height = '760px'; return; }
+    node.parent!.updateWorldMatrix(true, false);
+    const matrix = node.parent!.matrixWorld;
+    // Intersect viewport edges with the original label plane, preserving its perspective.
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -.039).applyMatrix4(matrix);
+    const inverse = matrix.clone().invert();
+    const ray = new THREE.Raycaster();
+    const heights = (screenY: number) => [3.9 - 3.18, 3.9 + 3.18].map(x => {
+      const projected = new THREE.Vector3(x, 0, .039).applyMatrix4(matrix).project(camera);
+      ray.setFromCamera(new THREE.Vector2(projected.x, 1 - screenY / size.height * 2), camera);
+      return ray.ray.intersectPlane(plane, new THREE.Vector3())!.applyMatrix4(inverse).y;
+    });
+    const top = Math.min(...heights(12)), bottom = Math.max(...heights(size.height - 12));
+    node.position.y = (top + bottom) / 2;
+    element.current.style.height = `${(top - bottom) * 400 / 2.4}px`;
+  });
+  return <group ref={group} position={[3.9, .2, .039]}><Html transform distanceFactor={2.4} zIndexRange={[5, 3]} pointerEvents="auto"><div ref={element} className={`shared-plane ${mode === 1 ? 'calendar-surface' : ''}`}>{children}</div></Html></group>;
+}
 function SceneCamera() {
   const { size } = useThree();
   // Keep the original desktop lens; widen the vertical field on narrow screens
@@ -29,11 +54,7 @@ export default function Scene({ mode, onSelect, children }: { mode: number; onSe
       <MenuCards mode={mode} cardXRef={cardXRef} isFocused={false} onSelect={onSelect} surfaceRef={surfaceRef} />
     </group>
     <group ref={surfaceRef} matrixAutoUpdate={false}>
-      <group position={[3.9, 0.2, 0.039]}>
-        <Html transform distanceFactor={2.4} zIndexRange={[5, 3]} className="shared-plane" pointerEvents="auto">
-          {children}
-        </Html>
-      </group>
+      <WorkspaceSurface mode={mode}>{children}</WorkspaceSurface>
     </group>
     <group position={[-0.3, -0.2, 0]} scale={[1.5, 1.5, 1.5]}><GaugeRing mode={mode} /></group>
   </Canvas></div>;

@@ -1,6 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { DAY_HEIGHT, HOUR_HEIGHT, localPoint, minuteDate, dragRange } from './calendarGeometry';
+import { localPoint, minuteDate, dragRange } from './calendarGeometry';
 import { ChevronLeft, ChevronRight, Plus, ArrowUpRight, CalendarDays } from 'lucide-react';
 import { addDays, dateKey, dayEvents, startOfWeek, timeLabel } from './model';
 import type { CalendarEvent, Task } from './model';
@@ -56,9 +56,15 @@ export default function Calendar({ date, onDate, events, tasks, onCreate, onCrea
   const navigate = (direction: number) => onDate(view === 'week' ? addDays(windowState.start, direction * 7) : new Date(date.getFullYear(), date.getMonth() + direction, 1));
 
   useLayoutEffect(() => { windowStart.current = windowState.start; }, [windowState.start]);
-  useLayoutEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = DAY_HEIGHT + 7 * HOUR_HEIGHT; }, [view, windowState.selected]);
+  useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (!frame || !scrollRef.current) return;
+    const fit = () => { if (scrollRef.current && !drag.current) scrollRef.current.scrollTop = frame.clientHeight; };
+    fit(); const observer = new ResizeObserver(fit); observer.observe(frame);
+    return () => observer.disconnect();
+  }, [view, windowState.selected]);
   useEffect(() => {
-    const cancel = () => { if (!drag.current) return; drag.current = null; cancelAnimationFrame(animation.current); setSelection(null); setBoundary(null); };
+    const cancel = () => { if (!drag.current) return; drag.current = null; cancelAnimationFrame(animation.current); setSelection(null); setBoundary(null); if (scrollRef.current && frameRef.current) scrollRef.current.scrollTop = frameRef.current.clientHeight; };
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') cancel(); };
     window.addEventListener('keydown', onKey); window.addEventListener('blur', cancel);
     return () => { cancelAnimationFrame(animation.current); window.removeEventListener('keydown', onKey); window.removeEventListener('blur', cancel); };
@@ -69,7 +75,7 @@ export default function Calendar({ date, onDate, events, tasks, onCreate, onCrea
     const point = localPoint(grid, { x, y });
     const labelWidth = grid.querySelector<HTMLElement>('.hour-labels')!.offsetWidth;
     const column = Math.max(0, Math.min(6, Math.floor((point.x - labelWidth) / ((grid.clientWidth - labelWidth) / 7))));
-    return minuteDate(addDays(windowStart.current, column), point.y / HOUR_HEIGHT * 60 - 1440);
+    return minuteDate(addDays(windowStart.current, column), point.y / grid.clientHeight * 4320 - 1440);
   };
   const updateDrag = () => {
     const current = drag.current;
@@ -85,13 +91,14 @@ export default function Calendar({ date, onDate, events, tasks, onCreate, onCrea
   const normalizeScroll = () => {
     const scroller = scrollRef.current;
     if (!scroller) return;
+    const dayHeight = frameRef.current!.clientHeight;
     let shift = 0;
-    if (scroller.scrollTop >= DAY_HEIGHT * 2) shift = 1;
-    else if (scroller.scrollTop < DAY_HEIGHT) shift = -1;
+    if (scroller.scrollTop >= dayHeight * 2) shift = 1;
+    else if (scroller.scrollTop < dayHeight) shift = -1;
     if (shift) {
       const next = addDays(windowStart.current, shift);
       windowStart.current = next;
-      scroller.scrollTop -= shift * DAY_HEIGHT;
+      scroller.scrollTop -= shift * dayHeight;
       setWindowState(current => ({ ...current, start: next }));
       setBoundary({ day: dateKey(next), direction: shift });
     }
@@ -108,8 +115,8 @@ export default function Calendar({ date, onDate, events, tasks, onCreate, onCrea
       if (!drag.current || !scrollRef.current || !frameRef.current) return;
       const point = localPoint(frameRef.current, { x: drag.current.x, y: drag.current.y });
       const height = frameRef.current.clientHeight;
-      const edge = 38;
-      const speed = point.y < edge ? -Math.min(22, (edge - point.y) * .5) : point.y > height - edge ? Math.min(22, (point.y - height + edge) * .5) : 0;
+      const edge = 16;
+      const speed = point.y < edge ? -Math.min(8, (edge - point.y) * .5) : point.y > height - edge ? Math.min(8, (point.y - height + edge) * .5) : 0;
       if (speed) {
         drag.current.moved = true;
         scrollRef.current.scrollTop += speed * Math.min(32, now - lastTime) / 16;
@@ -130,6 +137,7 @@ export default function Calendar({ date, onDate, events, tasks, onCreate, onCrea
     if (!cancel) { current.x = event.clientX; current.y = event.clientY; updateDrag(); }
     drag.current = null; cancelAnimationFrame(animation.current); setSelection(null); setBoundary(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    if (scrollRef.current && frameRef.current) scrollRef.current.scrollTop = frameRef.current.clientHeight;
     if (cancel) return;
     if (current.moved) { const range = dragRange(current.anchor, current.focus); onCreateRange(range.start, range.end); }
     else onCreate(current.anchor);
@@ -150,19 +158,19 @@ export default function Calendar({ date, onDate, events, tasks, onCreate, onCrea
       <div className="all-day-row"><small>全天</small>{days.map(day => <div key={dateKey(day)}>{dayEvents(events, day).filter(event => event.allDay).map(event => <button key={event.id} className={`month-event ${event.color}`} onClick={() => onEdit(event)}>{event.title}</button>)}</div>)}</div>
       <div className={`timeline-frame ${selection ? 'selecting-time' : ''}`} ref={frameRef}><PlaneCorners />
         {boundary && <div className={`day-transition direction-${boundary.direction}`} key={`${boundary.day}-${boundary.direction}`} role="status">{boundary.direction > 0 ? '↓' : '↑'} {boundary.day}</div>}
-        <div className="week-scroll" ref={scrollRef} onScroll={normalizeScroll} onPointerDown={beginSelection} onPointerMove={moveSelection} onPointerUp={event => finishSelection(event)} onPointerCancel={event => finishSelection(event, true)} onLostPointerCapture={event => finishSelection(event, true)}>
+        <span className="day-end-label">24:00</span><div className="week-scroll" ref={scrollRef} onScroll={normalizeScroll} onPointerDown={beginSelection} onPointerMove={moveSelection} onPointerUp={event => finishSelection(event)} onPointerCancel={event => finishSelection(event, true)} onLostPointerCapture={event => finishSelection(event, true)}>
           <div className="week-grid" ref={gridRef}><PlaneCorners /><div className="hour-labels">{[-1, 0, 1].map(offset => <div className="hour-day" key={offset}>{Array.from({ length: 24 }, (_, h) => <span key={h}>{String(h).padStart(2, '0')}:00</span>)}</div>)}</div>
           {days.map((columnDay, column) => <div key={column} data-column={column} className="day-column">{[-1, 0, 1].map(offset => {
             const day = addDays(columnDay, offset), items = dayEvents(events, day);
             const selected = preview ? layoutEvents(dayEvents([preview], day), day)[0] : null;
             return <div className={`day-segment ${dateKey(day) === dateKey(new Date()) ? 'today-column' : ''}`} data-date={dateKey(day)} key={offset}>
-              <div className="midnight-boundary"><span>{day.getMonth() + 1}/{day.getDate()} · 00:00</span></div>
+              
               {Array.from({ length: 24 }, (_, hour) => <button className="hour-cell" key={hour} aria-label={`${dateKey(day)} ${hour}:00 新建日程`} onClick={event => { if (event.detail === 0) { const time = new Date(day); time.setHours(hour); onCreate(time); } }} onDragOver={event => event.preventDefault()} onDrop={event => {
                 event.preventDefault(); const data = event.dataTransfer.getData('text/plain'); const time = timeAt(event.clientX, event.clientY);
                 if (data.startsWith('task:')) { const task = tasks.find(item => item.id === data.slice(5)); if (task) onCreate(time, task); } else if (data.startsWith('event:')) onMove(data.slice(6), time);
               }} />)}
-              {layoutEvents(items, day).map(({ event, top, height, lane, count }) => <button key={event.id} draggable={event.source === 'local'} onDragStart={e => e.dataTransfer.setData('text/plain', `event:${event.id}`)} onClick={() => onEdit(event)} className={`time-event ${event.color}`} style={{ top, height: Math.max(23, height - 3), left: `calc(${lane / count * 100}% + 3px)`, width: `calc(${100 / count}% - 6px)` }}><strong>{event.title}</strong><small>{timeLabel(event.start)} – {timeLabel(event.end)}</small></button>)}
-              {selected && <div className="time-selection" style={{ top: selected.top, height: Math.max(16, selected.height) }}><span>{timeLabel(preview!.start)} – {timeLabel(preview!.end)}</span></div>}
+              {layoutEvents(items, day).map(({ event, top, height, lane, count }) => <button key={event.id} draggable={event.source === 'local'} onDragStart={e => e.dataTransfer.setData('text/plain', `event:${event.id}`)} onClick={() => onEdit(event)} className={`time-event ${event.color}`} title={`${event.title} · ${timeLabel(event.start)} – ${timeLabel(event.end)}`} style={{ top: `${top / 1536 * 100}%`, height: `${height / 1536 * 100}%`, left: `calc(${lane / count * 100}% + 3px)`, width: `calc(${100 / count}% - 6px)` }}><strong>{event.title}</strong><small>{timeLabel(event.start)} – {timeLabel(event.end)}</small></button>)}
+              {selected && <div className="time-selection" style={{ top: `${selected.top / 1536 * 100}%`, height: `${selected.height / 1536 * 100}%` }}><span>{timeLabel(preview!.start)} – {timeLabel(preview!.end)}</span></div>}
             </div>;
           })}</div>)}
           </div>
