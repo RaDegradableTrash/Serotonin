@@ -15,14 +15,23 @@ function WorkspaceSurface({ mode, children }: { mode: number; children: ReactNod
   useFrame(() => {
     if (!group.current || !element.current) return;
     const node = group.current;
-    if (mode !== 1) { node.position.y = .2; element.current.style.height = '760px'; return; }
+    if (mode !== 1) { node.position.set(3.9, .2, .039); element.current.style.height = '760px'; element.current.style.width = '1060px'; return; }
     node.parent!.updateWorldMatrix(true, false);
     const matrix = node.parent!.matrixWorld;
     // Intersect viewport edges with the original label plane, preserving its perspective.
     const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -.039).applyMatrix4(matrix);
     const inverse = matrix.clone().invert();
     const ray = new THREE.Raycaster();
-    const heights = (screenY: number) => [3.9 - 3.18, 3.9 + 3.18].map(x => {
+    const left = .72;
+    // Keep the left edge beside the label; extend the opposite edge toward the viewport margin.
+    const rightAt = (y: number) => {
+      ray.setFromCamera(new THREE.Vector2(.90, y), camera);
+      return ray.ray.intersectPlane(plane, new THREE.Vector3())!.applyMatrix4(inverse).x;
+    };
+    const right = Math.max(left + 6.36, Math.min(rightAt(.85), rightAt(-.85)));
+    node.position.x = (left + right) / 2;
+    element.current.style.width = `${(right - left) * 400 / 2.4}px`;
+    const heights = (screenY: number) => [left, right].map(x => {
       const projected = new THREE.Vector3(x, 0, .039).applyMatrix4(matrix).project(camera);
       ray.setFromCamera(new THREE.Vector2(projected.x, 1 - screenY / size.height * 2), camera);
       return ray.ray.intersectPlane(plane, new THREE.Vector3())!.applyMatrix4(inverse).y;
