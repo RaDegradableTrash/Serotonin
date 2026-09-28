@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react()],
   preview: {
     port: Number(process.env.PORT || 4173),
-    allowedHosts: ['www.dustland.ai', 'serotonin-scf6.onrender.com'],
+    allowedHosts: ['www.dustland.ai', 'productivity.dustland.ai', 'serotonin-scf6.onrender.com'],
   },
   resolve: {
     alias: {
