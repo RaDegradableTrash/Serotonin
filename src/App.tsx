@@ -112,7 +112,7 @@ function App() {
       onAddWorkflow={() => setWorkflowEditor(true)} onWorkflow={setRunningWorkflow} onRemoveWorkflow={id => setWorkflows(workflows.filter(item => item.id !== id))}
       onEvent={setEditor} onCreateEvent={() => createEvent(new Date())} focusActive={!!focusEnd} focusTime={focusTime}
       onFocus={() => setFocusEnd(focusEnd ? null : Date.now() + 25 * 60 * 1000)} />}
-    {mode === 1 && <Calendar date={date} onDate={setDate} events={allEvents} tasks={tasks} onCreate={createEvent} onCreateRange={(start, end) => createEvent(start, undefined, end)} onEdit={setEditor} onMove={moveEvent} onResize={(id, start, end) => setEvents(current => current.map(e => e.id === id ? { ...e, start: start.toISOString(), end: end.toISOString() } : e))} onConnect={openSettings} connected={connections.calendar.status === 'connected'} />}
+    {mode === 1 && <Calendar date={date} onDate={setDate} events={allEvents} tasks={tasks} onDelete={id => setEvents(current => current.filter(event => event.id !== id))} onSave={event => setEvents(current => [...current.filter(item => item.id !== event.id), event])} onMove={moveEvent} onResize={(id, start, end) => setEvents(current => current.map(e => e.id === id ? { ...e, start: start.toISOString(), end: end.toISOString() } : e))} onConnect={openSettings} connected={connections.calendar.status === 'connected'} />}
     {mode === 2 && <Tasks tasks={tasks} events={allEvents} onChange={setTasks} onSchedule={task => createEvent(task.due ? new Date(`${task.due}T09:00`) : new Date(), task)} />}
     {mode === 3 && <section className="reserved-page" aria-label="预留空间" />}
     <div hidden={mode !== 4}><Music /></div>
