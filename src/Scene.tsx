@@ -39,6 +39,20 @@ function WorkspaceSurface({ mode, children }: { mode: number; children: ReactNod
     const top = Math.min(...heights(12)), bottom = Math.max(...heights(size.height - 12));
     node.position.y = (top + bottom) / 2;
     element.current.style.height = `${(top - bottom) * 400 / 2.4}px`;
+    // Size controls in screen pixels without flattening or rotating the shared plane.
+    const screen = (x: number, y: number) => {
+      const p = new THREE.Vector3(x, y, .039).applyMatrix4(matrix).project(camera);
+      return new THREE.Vector2(p.x * size.width / 2, p.y * size.height / 2);
+    };
+    const unitAt = (x: number) => {
+      const scales = [top].flatMap(y => {
+        const p = screen(x, y);
+        return [p.distanceTo(screen(x + .006, y)), p.distanceTo(screen(x, y + .006))];
+      });
+      return 1 / Math.max(.15, Math.min(...scales));
+    };
+    element.current.style.setProperty('--calendar-unit', `${unitAt(right)}px`);
+    element.current.style.setProperty('--sidebar-unit', `${unitAt(left)}px`);
   });
   return <group ref={group} position={[3.9, .2, .039]}><Html transform distanceFactor={2.4} zIndexRange={[5, 3]} pointerEvents="auto"><div ref={element} className={`shared-plane ${mode === 1 ? 'calendar-surface' : ''}`}>{children}</div></Html></group>;
 }
