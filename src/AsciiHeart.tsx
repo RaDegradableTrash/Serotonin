@@ -1,28 +1,8 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// Continuous folds stay attached to the surface as the brain turns.
-function folds(x: number, y: number, z: number) {
-  const a = Math.sin(17 * y + 3.4 * Math.sin(5 * z) + 2.1 * Math.sin(7 * x));
-  const b = Math.sin(16 * z + 3 * Math.sin(6 * x) + 2 * Math.sin(4 * y));
-  const groove = Math.exp(-a * a * 22) + .65 * Math.exp(-b * b * 28);
-  return 1 - .075 * groove + .016 * Math.sin(27 * x + 13 * y + 9 * z);
-}
-
-function lobe(side: number) {
-  const geometry = new THREE.SphereGeometry(1, 160, 112);
-  const position = geometry.attributes.position;
-  for (let i = 0; i < position.count; i++) {
-    const x = position.getX(i), y = position.getY(i), z = position.getZ(i);
-    const r = folds(x * side, y, z);
-    // Paired hemispheres with a visible longitudinal fissure and a fuller crown.
-    position.setXYZ(i, side * .49 + x * .69 * r, .19 + y * .91 * r, z * 1.06 * r);
-  }
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-export default function AsciiBrain() {
+export default function AsciiHeart() {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -32,29 +12,53 @@ export default function AsciiBrain() {
     const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false });
     renderer.setClearColor(0x000000);
     const scene = new THREE.Scene();
-    const brain = new THREE.Group();
+    const heart = new THREE.Group();
     const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
-    const geometries: THREE.BufferGeometry[] = [];
-    for (const side of [-1, 1]) {
-      const geometry = lobe(side);
-      geometries.push(geometry);
-      brain.add(new THREE.Mesh(geometry, material));
-    }
-    const cerebellum = new THREE.SphereGeometry(1, 96, 64);
-    const p = cerebellum.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-      const r = 1 - .045 * Math.pow(Math.cos(y * 48 + z * 3), 8);
-      p.setXYZ(i, x * .61 * r, y * .35 * r - .63, z * .57 * r - .46);
-    }
-    cerebellum.computeVertexNormals();
-    geometries.push(cerebellum);
-    brain.add(new THREE.Mesh(cerebellum, material));
-    const stem = new THREE.CapsuleGeometry(.14, .42, 8, 24);
-    stem.translate(0, -.91, -.24);
-    geometries.push(stem);
-    brain.add(new THREE.Mesh(stem, material));
-    scene.add(brain);
+    let mixer: THREE.AnimationMixer | undefined;
+    let model: THREE.Group | undefined;
+    let disposed = false;
+    const releaseModel = (root: THREE.Object3D) => root.traverse(object => {
+      if (object instanceof THREE.Mesh) {
+        object.geometry.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach(item => item.dispose());
+        if (object instanceof THREE.SkinnedMesh) object.skeleton.dispose();
+      }
+    });
+    new GLTFLoader().load(import.meta.env.BASE_URL + 'models/lullaby-heart.glb', gltf => {
+      if (disposed) { releaseModel(gltf.scene); return; }
+      model = gltf.scene;
+      model.traverse(object => {
+        if (object instanceof THREE.Mesh) {
+          const old = Array.isArray(object.material) ? object.material : [object.material];
+          old.forEach(item => item.dispose());
+          object.material = material;
+          object.frustumCulled = false;
+        }
+      });
+      mixer = new THREE.AnimationMixer(model);
+      for (const clip of gltf.animations) mixer.clipAction(clip).setLoop(THREE.LoopRepeat, Infinity).play();
+      // Fit all heartbeat poses once, so the framing never pumps with the beat.
+      const bounds = new THREE.Box3();
+      const duration = Math.max(...gltf.animations.map(clip => clip.duration), 0);
+      for (let sample = 0; sample <= 24; sample++) {
+        mixer.setTime(duration * sample / 24);
+        model.updateMatrixWorld(true);
+        bounds.union(new THREE.Box3().setFromObject(model, true));
+      }
+      mixer.setTime(0);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      const scale = 2.8 / Math.max(size.y, Math.hypot(size.x, size.z));
+      model.position.sub(center);
+      const fitted = new THREE.Group();
+      fitted.scale.setScalar(scale);
+      fitted.add(model);
+      heart.add(fitted);
+      canvas.dataset.loaded = 'true';
+      canvas.dataset.animationDuration = String(duration);
+    }, undefined, () => { canvas.setAttribute('aria-label', '心脏模型加载失败，请刷新重试'); });
+    scene.add(heart);
     scene.add(new THREE.AmbientLight(0xffffff, .32));
     const light = new THREE.DirectionalLight(0xffffff, 2.6);
     light.position.set(-3, 5, 5);
@@ -88,11 +92,11 @@ export default function AsciiBrain() {
     let frame = 0, previous = 0, angle = .45;
     const render = (time: number) => {
       frame = requestAnimationFrame(render);
-      if (time - previous < 50 || document.hidden || !target) return;
+      if (time - previous < 33 || document.hidden || !target) return;
       const delta = Math.min((time - previous) / 1000, .1);
       previous = time;
-      if (!reduced.matches) angle += delta * .23;
-      brain.rotation.set(.16, angle, -.035);
+      if (!reduced.matches) { angle += delta * .23; mixer?.update(delta); }
+      heart.rotation.set(.16, angle, -.035);
       renderer.setRenderTarget(target);
       renderer.render(scene, camera);
       renderer.readRenderTargetPixels(target, 0, 0, columns, rows, pixels);
@@ -114,8 +118,10 @@ export default function AsciiBrain() {
     frame = requestAnimationFrame(render);
     return () => {
       cancelAnimationFrame(frame); observer.disconnect(); target?.dispose();
-      geometries.forEach(geometry => geometry.dispose()); material.dispose(); renderer.dispose();
+      disposed = true; mixer?.stopAllAction();
+      if (model) { mixer?.uncacheRoot(model); releaseModel(model); }
+      material.dispose(); renderer.dispose();
     };
   }, []);
-  return <canvas ref={ref} className="ascii-brain" role="img" aria-label="缓慢旋转的琥珀色三维 ASCII 大脑" />;
+  return <canvas ref={ref} className="ascii-heart" role="img" aria-label="缓慢旋转的琥珀色三维 ASCII 心脏" />;
 }

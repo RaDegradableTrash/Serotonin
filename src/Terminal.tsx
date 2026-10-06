@@ -1,4 +1,4 @@
-import AsciiBrain from './AsciiBrain';
+import AsciiHeart from './AsciiHeart';
 import './Terminal.css';
 
 /** Curved amber CRT housing for the ASCII animation. */
@@ -62,6 +62,6 @@ export default function Terminal() {
       <path d="M73 39Q1000 5 1927 39Q1969 550 1927 1061Q1000 1094 73 1061Q31 550 73 39Z" fill="none" stroke="url(#crt-rim)" strokeWidth="5"/>
       <rect width="2000" height="1100" filter="url(#crt-grain)" opacity=".025" className="crt-grain"/>
     </svg>
-    <AsciiBrain />
+    <AsciiHeart />
   </main>;
 }
