@@ -25,7 +25,7 @@ export default function AsciiHeart() {
         if (object instanceof THREE.SkinnedMesh) object.skeleton.dispose();
       }
     });
-    new GLTFLoader().load(import.meta.env.BASE_URL + 'models/lullaby-heart-animation-copy.glb', gltf => {
+    new GLTFLoader().load(import.meta.env.BASE_URL + 'models/lullaby-heart-animation-copy.glb?v=97336cbc1eb9', gltf => {
       if (disposed) { releaseModel(gltf.scene); return; }
       model = gltf.scene;
       model.traverse(object => {
