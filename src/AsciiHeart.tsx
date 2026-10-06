@@ -53,6 +53,8 @@ export default function AsciiHeart() {
       model.position.sub(center);
       const fitted = new THREE.Group();
       fitted.scale.setScalar(scale);
+      // Blender -X stays -X in glTF; rotate that face toward the +Z camera.
+      fitted.rotation.y = Math.PI / 2;
       fitted.add(model);
       heart.add(fitted);
       canvas.dataset.loaded = 'true';
