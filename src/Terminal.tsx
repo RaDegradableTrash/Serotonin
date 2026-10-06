@@ -1,9 +1,10 @@
+import AsciiBrain from './AsciiBrain';
 import './Terminal.css';
 
-/** An empty CRT shell. The bowed outline and inset shading model the glass itself. */
+/** Curved amber CRT housing for the ASCII animation. */
 export default function Terminal() {
   return <main className="crt-stage" aria-label="复古琥珀色 CRT 显示器">
-    <svg className="crt-monitor" viewBox="0 0 2000 1100" preserveAspectRatio="none" role="img" aria-label="带有弧面玻璃、扫描线与厚边框的空白屏幕">
+    <svg className="crt-monitor" viewBox="0 0 2000 1100" preserveAspectRatio="none" role="img" aria-label="带有弧面玻璃、扫描线与厚边框的屏幕">
       <defs>
         <linearGradient id="crt-case" x1="0" y1="0" x2="0.95" y2="1">
           <stop offset="0" stopColor="#615848"/>
@@ -61,5 +62,6 @@ export default function Terminal() {
       <path d="M73 39Q1000 5 1927 39Q1969 550 1927 1061Q1000 1094 73 1061Q31 550 73 39Z" fill="none" stroke="url(#crt-rim)" strokeWidth="5"/>
       <rect width="2000" height="1100" filter="url(#crt-grain)" opacity=".025" className="crt-grain"/>
     </svg>
+    <AsciiBrain />
   </main>;
 }
