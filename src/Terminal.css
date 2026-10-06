@@ -1,5 +1,5 @@
 body:has(.crt-stage){margin:0;min-width:0;background:#020302;overflow:hidden}
-.crt-stage{width:100%;height:100vh;height:100svh;overflow:hidden;background:#020302;padding:0 clamp(10px,2.2vw,48px);isolation:isolate}
-.crt-monitor{display:block;width:100%;height:100%;overflow:hidden;box-shadow:0 0 1px 1px #53493644}
+.crt-stage{width:100%;height:100vh;height:100svh;overflow:hidden;background:#020302;padding:0;isolation:isolate}
+.crt-monitor{display:block;width:100%;height:100%;overflow:hidden}
 .crt-grain{mix-blend-mode:soft-light;pointer-events:none}
-@media(max-width:600px){.crt-stage{padding:0 8px}}
+
