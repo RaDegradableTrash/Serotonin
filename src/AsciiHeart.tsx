@@ -94,14 +94,29 @@ export default function AsciiHeart() {
     resize();
     const ramp = ' .,:;=+irsxXA253hMHGB@';
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let frame = 0, previous = 0, angle = .45;
+    // Total travel is 60 degrees for pitch/yaw and 20 degrees for roll.
+    const rotationTarget = new THREE.Vector3();
+    const followPointer = (event: PointerEvent) => {
+      if (event.pointerType === 'touch') return;
+      const x = THREE.MathUtils.clamp(event.clientX / window.innerWidth * 2 - 1, -1, 1);
+      const y = THREE.MathUtils.clamp(event.clientY / window.innerHeight * 2 - 1, -1, 1);
+      rotationTarget.set(y * Math.PI / 6, x * Math.PI / 6, -x * y * Math.PI / 18);
+    };
+    const resetPointer = () => rotationTarget.set(0, 0, 0);
+    window.addEventListener('pointermove', followPointer, { passive: true });
+    document.documentElement.addEventListener('pointerleave', resetPointer);
+    window.addEventListener('blur', resetPointer);
+    let frame = 0, previous = 0;
     const render = (time: number) => {
       frame = requestAnimationFrame(render);
       if (time - previous < 33 || document.hidden || !target) return;
       const delta = Math.min((time - previous) / 1000, .1);
       previous = time;
-      if (!reduced.matches) { angle += delta * .23; mixer?.update(delta); }
-      heart.rotation.set(0, angle, 0);
+      if (!reduced.matches) mixer?.update(delta);
+      const blend = reduced.matches ? 1 : 1 - Math.exp(-7 * delta);
+      heart.rotation.x = THREE.MathUtils.lerp(heart.rotation.x, rotationTarget.x, blend);
+      heart.rotation.y = THREE.MathUtils.lerp(heart.rotation.y, rotationTarget.y, blend);
+      heart.rotation.z = THREE.MathUtils.lerp(heart.rotation.z, rotationTarget.z, blend);
       renderer.setRenderTarget(target);
       renderer.render(scene, camera);
       renderer.readRenderTargetPixels(target, 0, 0, columns, rows, pixels);
@@ -123,10 +138,13 @@ export default function AsciiHeart() {
     frame = requestAnimationFrame(render);
     return () => {
       cancelAnimationFrame(frame); observer.disconnect(); target?.dispose();
+      window.removeEventListener('pointermove', followPointer);
+      document.documentElement.removeEventListener('pointerleave', resetPointer);
+      window.removeEventListener('blur', resetPointer);
       disposed = true; mixer?.stopAllAction();
       if (model) { mixer?.uncacheRoot(model); releaseModel(model); }
       material.dispose(); renderer.dispose();
     };
   }, []);
-  return <canvas ref={ref} className="ascii-heart" role="img" aria-label="缓慢旋转的琥珀色三维 ASCII 心脏" />;
+  return <canvas ref={ref} className="ascii-heart" role="img" aria-label="随鼠标轻微转动、循环心跳的琥珀色三维 ASCII 心脏" />;
 }
