@@ -25,7 +25,7 @@ export default function AsciiHeart() {
         if (object instanceof THREE.SkinnedMesh) object.skeleton.dispose();
       }
     });
-    new GLTFLoader().load(import.meta.env.BASE_URL + 'models/lullaby-heart.glb', gltf => {
+    new GLTFLoader().load(import.meta.env.BASE_URL + 'models/lullaby-heart-animation-copy.glb', gltf => {
       if (disposed) { releaseModel(gltf.scene); return; }
       model = gltf.scene;
       model.traverse(object => {
@@ -49,7 +49,7 @@ export default function AsciiHeart() {
       mixer.setTime(0);
       const size = bounds.getSize(new THREE.Vector3());
       const center = bounds.getCenter(new THREE.Vector3());
-      const scale = 2.8 / Math.max(size.y, Math.hypot(size.x, size.z));
+      const scale = (2.6 * (2 / 3) / .74) / size.y;
       model.position.sub(center);
       const fitted = new THREE.Group();
       fitted.scale.setScalar(scale);
@@ -74,6 +74,11 @@ export default function AsciiHeart() {
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       width = rect.width; height = rect.height;
+      if (!width || !height) return;
+      // Match the projection to the displayed canvas, not the ASCII grid.
+      camera.left = -1.3 * width / height;
+      camera.right = 1.3 * width / height;
+      camera.updateProjectionMatrix();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -96,7 +101,7 @@ export default function AsciiHeart() {
       const delta = Math.min((time - previous) / 1000, .1);
       previous = time;
       if (!reduced.matches) { angle += delta * .23; mixer?.update(delta); }
-      heart.rotation.set(.16, angle, -.035);
+      heart.rotation.set(0, angle, 0);
       renderer.setRenderTarget(target);
       renderer.render(scene, camera);
       renderer.readRenderTargetPixels(target, 0, 0, columns, rows, pixels);
