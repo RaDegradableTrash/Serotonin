@@ -1,11 +1,18 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
 import { prepareDomain } from './domainMigration'
 
-void prepareDomain().then(result => {
+async function boot() {
+  if (/^\/terminal\/?$/.test(location.pathname)) {
+    const { default: Terminal } = await import('./Terminal');
+    document.title = 'DUSTLAND / Ragon — personal terminal';
+    createRoot(document.getElementById('root')!).render(<StrictMode><Terminal /></StrictMode>);
+    return;
+  }
+  const result = await prepareDomain();
   if (result === 'handled') return;
+  const { default: App } = await import('./App');
   createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
   if (result === 'warning') {
     const notice = document.createElement('button');
@@ -14,4 +21,5 @@ void prepareDomain().then(result => {
     notice.onclick = () => notice.remove();
     document.body.append(notice);
   }
-});
+}
+void boot();

@@ -9,6 +9,10 @@ export default defineConfig({
     name: 'productivity-path',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
+        if (/^\/terminal\/?(?:\?.*)?$/.test(req.url || '')) {
+          req.url = '/productivity/' + (req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
+          return next();
+        }
         if (!/^\/productivity(?:\?.*)?$/.test(req.url || '')) return next();
         res.writeHead(308, { Location: req.url!.replace('/productivity', '/productivity/') });
         res.end();
@@ -16,6 +20,10 @@ export default defineConfig({
     },
     configurePreviewServer(server) {
       server.middlewares.use((req, res, next) => {
+        if (/^\/terminal\/?(?:\?.*)?$/.test(req.url || '')) {
+          req.url = '/productivity/' + (req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
+          return next();
+        }
         if (!/^\/productivity(?:\?.*)?$/.test(req.url || '')) return next();
         res.writeHead(308, { Location: req.url!.replace('/productivity', '/productivity/') });
         res.end();
