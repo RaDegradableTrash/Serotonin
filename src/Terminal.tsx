@@ -56,7 +56,7 @@ export default function Terminal() {
       locate(event); pointer.down = true;
       const reach = Math.hypot(Math.max(pointer.x, width - pointer.x), Math.max(pointer.y, height - pointer.y)) + cell;
       const speed = reach / 1.05;
-      waves.push({ x: pointer.x, y: pointer.y, age: 0, speed, duration: reach / speed + .95 });
+      waves.push({ x: pointer.x, y: pointer.y, age: 0, speed, duration: reach / speed + 2.3 });
       canvas.setPointerCapture(event.pointerId);
     };
     const up = (event: PointerEvent) => {
@@ -110,16 +110,16 @@ export default function Terminal() {
         let waveShrink = 0;
         for (const wave of waves) {
           const localTime = wave.age - Math.hypot(sx - wave.x, sy - wave.y) / wave.speed;
-          const opening = smooth(localTime / .12);
-          const recovery = smooth((localTime - .38) / .42);
+          const opening = smooth(localTime / .45);
+          const recovery = smooth((localTime - .95) / 1.1);
           waveShrink = Math.max(waveShrink, opening * (1 - recovery));
         }
         const hoverShrink = pointer.active ? .78 * falloff : 0;
         const target = Math.max(0, 1 - Math.max(hoverShrink, waveShrink));
         if (reduced.matches) { tile.scale = target; tile.velocity = 0; }
         else {
-          // Critically damped spring: quick opening, softer recovery, no bounce.
-          const omega = target < tile.scale ? 115 : 50;
+          // Critically damped spring: slow scaling, softer recovery, no bounce.
+          const omega = target < tile.scale ? 16 : 9;
           const offset = tile.scale - target;
           const temp = (tile.velocity + omega * offset) * dt;
           const decay = Math.exp(-omega * dt);
