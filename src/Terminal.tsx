@@ -133,8 +133,8 @@ export default function Terminal() {
         if (sx < -cell || sx > width + cell || sy < -cell || sy > height + cell) continue;
         // Fully close the resting mask; no strokes or artificial grout lines.
         if (tile.scale < .04) continue;
-        // Never draw a size between 80% and 100%, in either direction.
-        const scale = tile.scale >= .995 ? 1 : Math.min(.8, Math.max(0, tile.scale));
+        // Preserve continuous spring-driven scaling through the entire size range.
+        const scale = Math.max(0, Math.min(1, tile.scale));
         const half = (cell + .65) * Math.min(1, scale) / 2;
         const local = new Path2D();
         local.rect(-half, -half, half * 2, half * 2);
