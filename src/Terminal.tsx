@@ -92,7 +92,7 @@ export default function Terminal() {
           follower.x += follower.vx * step; follower.y += follower.vy * step;
         }
       }
-      const radius = Math.min(width, height) * .21;
+      const radius = Math.min(width, height) * .2625;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = '#002FA7';
       ctx.fillRect(0, 0, width, height);
@@ -136,9 +136,8 @@ export default function Terminal() {
         // Never draw a size between 80% and 100%, in either direction.
         const scale = tile.scale >= .995 ? 1 : Math.min(.8, Math.max(0, tile.scale));
         const half = (cell + .65) * Math.min(1, scale) / 2;
-        const corner = half * Math.pow(1 - scale, .65);
         const local = new Path2D();
-        local.roundRect(-half, -half, half * 2, half * 2, corner);
+        local.rect(-half, -half, half * 2, half * 2);
         const shape = new Path2D();
         shape.addPath(local, new DOMMatrix([cos, sin * tilt, -sin, cos * tilt, sx, sy]));
         path.addPath(shape);
