@@ -16,7 +16,7 @@ export default function Terminal() {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
-    let width = 0, height = 0, cell = 10.5, dpr = 1;
+    let width = 0, height = 0, cell = 21, dpr = 1;
     let tiles: Tile[] = [];
     let frame = 0, previous = 0;
     const follower = { x: 0, y: 0, vx: 0, vy: 0 };
@@ -30,7 +30,7 @@ export default function Terminal() {
       width = rect.width; height = rect.height;
       dpr = Math.min(devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
-      cell = Math.max(28, Math.min(46, width / 30)) / 4;
+      cell = Math.max(28, Math.min(46, width / 30)) / 2;
       const reach = Math.hypot(width, height) / 2 / tilt + cell * 2;
       const count = Math.ceil(reach / cell);
       tiles = [];
