@@ -1,8 +1,5 @@
-body:has(.crt-stage){margin:0;min-width:0;background:#020302;overflow:hidden}
-.crt-stage{width:100%;height:100vh;height:100svh;overflow:hidden;background:#020302;padding:0;isolation:isolate}
-.crt-monitor{display:block;width:100%;height:100%;overflow:hidden}
-.crt-grain{mix-blend-mode:soft-light;pointer-events:none}
-
-
-.crt-stage{position:relative}
-.ascii-heart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:78%;height:74%;pointer-events:none;filter:drop-shadow(0 0 3px #ec951b33)}
+body:has(.tile-stage){margin:0;min-width:0;overflow:hidden;background:#002fa7}
+.tile-stage{position:relative;width:100%;height:100vh;height:100svh;overflow:hidden;background:#002fa7}
+.tile-field{display:block;width:100%;height:100%;touch-action:none}
+/* Retained for the standalone 3D-to-ASCII renderer. */
+.ascii-heart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:78%;height:74%;pointer-events:none}

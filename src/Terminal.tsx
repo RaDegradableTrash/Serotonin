@@ -1,67 +1,131 @@
-import AsciiHeart from './AsciiHeart';
+import { useEffect, useRef } from 'react';
 import './Terminal.css';
 
-/** Curved amber CRT housing for the ASCII animation. */
+type Tile = { x: number; y: number; scale: number; velocity: number; tone: string };
+
 export default function Terminal() {
-  return <main className="crt-stage" aria-label="复古琥珀色 CRT 显示器">
-    <svg className="crt-monitor" viewBox="0 0 2000 1100" preserveAspectRatio="none" role="img" aria-label="带有弧面玻璃、扫描线与厚边框的屏幕">
-      <defs>
-        <linearGradient id="crt-case" x1="0" y1="0" x2="0.95" y2="1">
-          <stop offset="0" stopColor="#615848"/>
-          <stop offset=".12" stopColor="#403b31"/>
-          <stop offset=".52" stopColor="#322f28"/>
-          <stop offset="1" stopColor="#504a3d"/>
-        </linearGradient>
-        <linearGradient id="crt-top-light" x1="0" y1="0" x2="0" y2="1">
-          <stop stopColor="#a19171" stopOpacity=".27"/>
-          <stop offset=".5" stopColor="#74664f" stopOpacity=".08"/>
-          <stop offset="1" stopColor="#090806" stopOpacity=".9"/>
-        </linearGradient>
-        <radialGradient id="crt-glass" cx=".49" cy=".49" r=".72">
-          <stop stopColor="#291b0d"/>
-          <stop offset=".5" stopColor="#211509"/>
-          <stop offset=".82" stopColor="#130c04"/>
-          <stop offset="1" stopColor="#070502"/>
-        </radialGradient>
-        <radialGradient id="crt-reflection" cx=".48" cy=".36" r=".65">
-          <stop stopColor="#cda56e" stopOpacity=".025"/>
-          <stop offset=".55" stopColor="#b18b57" stopOpacity=".012"/>
-          <stop offset="1" stopColor="#000" stopOpacity="0"/>
-        </radialGradient>
-        <linearGradient id="crt-rim" x1="0" y1="0" x2=".8" y2="1">
-          <stop stopColor="#b3a388" stopOpacity=".17"/>
-          <stop offset=".32" stopColor="#81745b" stopOpacity=".03"/>
-          <stop offset=".75" stopColor="#050402" stopOpacity=".8"/>
-          <stop offset="1" stopColor="#b9a585" stopOpacity=".15"/>
-        </linearGradient>
-        <pattern id="crt-scanlines" width="4" height="3.5" patternUnits="userSpaceOnUse">
-          <rect width="4" height=".8" fill="#000" fillOpacity=".19"/>
-          <rect y="1" width="4" height=".45" fill="#b98235" fillOpacity=".025"/>
-        </pattern>
-        <filter id="crt-soft-edge" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="11"/></filter>
-        <filter id="crt-grain" x="0" y="0" width="100%" height="100%">
-          <feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="3" stitchTiles="stitch"/>
-          <feColorMatrix type="saturate" values="0"/>
-        </filter>
-        <clipPath id="crt-glass-clip"><path d="M76 42 Q1000 8 1924 42 Q1965 550 1924 1058 Q1000 1090 76 1058 Q35 550 76 42Z"/></clipPath>
-      </defs>
-      <rect width="2000" height="1100" fill="url(#crt-case)"/>
-      <path d="M0 0H2000L1924 42Q1000 8 76 42Z" fill="url(#crt-top-light)"/>
-      <path d="M0 0L76 42Q35 550 76 1058L0 1100Z" fill="#817156" fillOpacity=".12"/>
-      <path d="M2000 0L1924 42Q1965 550 1924 1058L2000 1100Z" fill="#090805" fillOpacity=".18"/>
-      <path d="M0 1100L76 1058Q1000 1090 1924 1058L2000 1100Z" fill="#afa080" fillOpacity=".075"/>
-      <path d="M70 34Q1000 0 1930 34Q1974 550 1930 1066Q1000 1100 70 1066Q26 550 70 34Z" fill="#050402" filter="url(#crt-soft-edge)"/>
-      <path d="M76 42Q1000 8 1924 42Q1965 550 1924 1058Q1000 1090 76 1058Q35 550 76 42Z" fill="url(#crt-glass)"/>
-      <g clipPath="url(#crt-glass-clip)">
-        <rect width="2000" height="1100" fill="url(#crt-reflection)"/>
-        <rect width="2000" height="1100" fill="url(#crt-scanlines)"/>
-        <path d="M76 42Q1000 8 1924 42Q1965 550 1924 1058Q1000 1090 76 1058Q35 550 76 42Z" fill="none" stroke="#000" strokeOpacity=".7" strokeWidth="38" filter="url(#crt-soft-edge)"/>
-        <path d="M74 68Q1000 25 1926 68" fill="none" stroke="#c5b08a" strokeOpacity=".035" strokeWidth="12" filter="url(#crt-soft-edge)"/>
-        <path d="M58 550Q1000 543 1942 550" fill="none" stroke="#ae702c" strokeOpacity=".025" strokeWidth="2"/>
-      </g>
-      <path d="M73 39Q1000 5 1927 39Q1969 550 1927 1061Q1000 1094 73 1061Q31 550 73 39Z" fill="none" stroke="url(#crt-rim)" strokeWidth="5"/>
-      <rect width="2000" height="1100" filter="url(#crt-grain)" opacity=".025" className="crt-grain"/>
-    </svg>
-    <AsciiHeart />
-  </main>;
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    let width = 0, height = 0, cell = 42, dpr = 1;
+    let tiles: Tile[] = [];
+    let frame = 0, previous = 0, pulse = 0;
+    const pointer = { x: 0, y: 0, active: false, down: false };
+    const angle = -12 * Math.PI / 180;
+    const cos = Math.cos(angle), sin = Math.sin(angle), tilt = .93;
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      width = rect.width; height = rect.height;
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
+      cell = Math.max(28, Math.min(46, width / 30));
+      const reach = Math.hypot(width, height) / 2 / tilt + cell * 2;
+      const count = Math.ceil(reach / cell);
+      tiles = [];
+      for (let row = -count; row <= count; row++) {
+        for (let col = -count; col <= count; col++) {
+          const tone = 246 + ((Math.imul(col + 101, 73) ^ Math.imul(row + 103, 37)) >>> 0) % 6;
+          tiles.push({ x: col * cell, y: row * cell, scale: 1, velocity: 0, tone: `rgb(${tone},${tone},${tone - 2})` });
+        }
+      }
+    };
+    const locate = (event: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = event.clientX - rect.left;
+      pointer.y = event.clientY - rect.top;
+      pointer.active = true;
+    };
+    const down = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      locate(event); pointer.down = true; pulse = 1;
+      canvas.setPointerCapture(event.pointerId);
+    };
+    const up = (event: PointerEvent) => {
+      pointer.down = false;
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      if (event.pointerType === 'touch') pointer.active = false;
+    };
+    const leave = () => { if (!pointer.down) pointer.active = false; };
+    const reset = () => { pointer.down = false; pointer.active = false; pulse = 0; };
+    canvas.addEventListener('pointermove', locate);
+    canvas.addEventListener('pointerdown', down);
+    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointerleave', leave);
+    canvas.addEventListener('pointercancel', reset);
+    window.addEventListener('blur', reset);
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas); resize();
+    const draw = (time: number) => {
+      frame = requestAnimationFrame(draw);
+      const dt = Math.min((time - (previous || time)) / 1000, 1 / 30);
+      previous = time;
+      if (document.hidden) return;
+      pulse *= Math.exp(-dt * 3.8);
+      const pressure = pointer.down ? 1 : pulse;
+      const radius = Math.min(width, height) * .30 + pressure * cell * .65;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = '#002FA7';
+      ctx.fillRect(0, 0, width, height);
+      const visible: { tile: Tile; points: number[] }[] = [];
+      const path = new Path2D();
+      for (const tile of tiles) {
+        const sx = width / 2 + tile.x * cos - tile.y * sin;
+        const sy = height / 2 + (tile.x * sin + tile.y * cos) * tilt;
+        if (sx < -cell || sx > width + cell || sy < -cell || sy > height + cell) continue;
+        const distance = Math.hypot(sx - pointer.x, sy - pointer.y);
+        const t = Math.max(0, 1 - distance / radius);
+        const falloff = t * t * (3 - 2 * t);
+        const target = pointer.active ? 1 - (.78 + pressure * .18) * falloff : 1;
+        if (reduced.matches) { tile.scale = target; tile.velocity = 0; }
+        else {
+          // Critically damped spring: quick opening, softer recovery, no bounce.
+          const omega = target < tile.scale ? 17 : 10;
+          const offset = tile.scale - target;
+          const temp = (tile.velocity + omega * offset) * dt;
+          const decay = Math.exp(-omega * dt);
+          tile.scale = target + (offset + temp) * decay;
+          tile.velocity = (tile.velocity - omega * temp) * decay;
+        }
+        const half = (cell - .7) * Math.max(.035, Math.min(1, tile.scale)) / 2;
+        const points: number[] = [];
+        for (const [x, y] of [[-half, -half], [half, -half], [half, half], [-half, half]]) {
+          points.push(sx + x * cos - y * sin, sy + (x * sin + y * cos) * tilt);
+        }
+        path.moveTo(points[0], points[1]);
+        for (let i = 2; i < 8; i += 2) path.lineTo(points[i], points[i + 1]);
+        path.closePath();
+        visible.push({ tile, points });
+      }
+      // All tiles cast one coherent shadow, at 60 degrees in screen space.
+      ctx.save();
+      ctx.shadowColor = 'rgba(0, 12, 55, .48)';
+      ctx.shadowOffsetX = Math.cos(Math.PI / 3) * 18 * dpr;
+      ctx.shadowOffsetY = Math.sin(Math.PI / 3) * 18 * dpr;
+      ctx.shadowBlur = 5 * dpr;
+      ctx.fillStyle = '#f8f8f6';
+      ctx.fill(path);
+      ctx.restore();
+      ctx.lineWidth = .55;
+      ctx.strokeStyle = '#d0d2d3';
+      for (const { tile, points } of visible) {
+        ctx.beginPath(); ctx.moveTo(points[0], points[1]);
+        for (let i = 2; i < 8; i += 2) ctx.lineTo(points[i], points[i + 1]);
+        ctx.closePath(); ctx.fillStyle = tile.tone; ctx.fill(); ctx.stroke();
+      }
+    };
+    frame = requestAnimationFrame(draw);
+    return () => {
+      cancelAnimationFrame(frame); observer.disconnect();
+      canvas.removeEventListener('pointermove', locate);
+      canvas.removeEventListener('pointerdown', down);
+      canvas.removeEventListener('pointerup', up);
+      canvas.removeEventListener('pointerleave', leave);
+      canvas.removeEventListener('pointercancel', reset);
+      window.removeEventListener('blur', reset);
+    };
+  }, []);
+  return <main className="tile-stage"><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" /></main>;
 }
