@@ -18,6 +18,7 @@ export default function Terminal() {
     if (!canvas || !ctx) return;
     let width = 0, height = 0, cell = 42, dpr = 1;
     let tiles: Tile[] = [];
+    let stride = 0;
     let frame = 0, previous = 0;
     const follower = { x: 0, y: 0, vx: 0, vy: 0 };
     let waves: Wave[] = [];
@@ -34,6 +35,7 @@ export default function Terminal() {
       const reach = Math.hypot(width, height) / 2 / tilt + cell * 2;
       const count = Math.ceil(reach / cell);
       tiles = [];
+      stride = count * 2 + 1;
       for (let row = -count; row <= count; row++) {
         for (let col = -count; col <= count; col++) {
           const tone = 246 + ((Math.imul(col + 101, 73) ^ Math.imul(row + 103, 37)) >>> 0) % 6;
@@ -126,12 +128,45 @@ export default function Terminal() {
           tile.scale = target + (offset + temp) * decay;
           tile.velocity = (tile.velocity - omega * temp) * decay;
         }
+      }
+      // Resolve neighbors only after every tile has its current-frame scale.
+      const renderScales = tiles.map(tile => {
+        const scale = Math.max(0, Math.min(1, tile.scale));
+        // Ease away subpixel slits before they become isolated blue hairs.
+        return scale + (1 - scale) * smooth((scale - .94) / .04);
+      });
+      for (const [index, tile] of tiles.entries()) {
+        const sx = width / 2 + tile.x * cos - tile.y * sin;
+        const sy = height / 2 + (tile.x * sin + tile.y * cos) * tilt;
+        if (sx < -cell || sx > width + cell || sy < -cell || sy > height + cell) continue;
         // Fully close the resting mask; no strokes or artificial grout lines.
         if (tile.scale < .04) continue;
-        const half = (cell + .45) * Math.max(0, Math.min(1, tile.scale)) / 2;
-        const corner = half * Math.pow(1 - Math.min(1, tile.scale), .65);
+        const scale = renderScales[index] >= .995 ? 1 : renderScales[index];
+        const half = (cell + .65) * Math.min(1, scale) / 2;
+        const full = (cell + .65) / 2;
+        // Seal a lightly shrunken tile against its resting neighbors. Blend
+        // between 8% and 12% shrink so a moving wave cannot pop the seam.
+        const seal = smooth((scale - .88) / .04);
+        const resting = (offset: number) => (renderScales[index + offset] ?? 1) >= .995;
+        const left = resting(-1) ? seal : 0;
+        const right = resting(1) ? seal : 0;
+        const top = resting(-stride) ? seal : 0;
+        const bottom = resting(stride) ? seal : 0;
+        const x0 = -half - (full - half) * left;
+        const x1 = half + (full - half) * right;
+        const y0 = -half - (full - half) * top;
+        const y1 = half + (full - half) * bottom;
+        const corner = half * Math.pow(1 - Math.min(1, scale), .65);
+        // Shared edges are flat; round only the corners exposed to blue.
+        // This closes pinholes at junctions without adding rounded bulges.
+        const corners = [
+          corner * (1 - Math.max(left, top)),
+          corner * (1 - Math.max(right, top)),
+          corner * (1 - Math.max(right, bottom)),
+          corner * (1 - Math.max(left, bottom)),
+        ];
         const local = new Path2D();
-        local.roundRect(-half, -half, half * 2, half * 2, corner);
+        local.roundRect(x0, y0, x1 - x0, y1 - y0, corners);
         const shape = new Path2D();
         shape.addPath(local, new DOMMatrix([cos, sin * tilt, -sin, cos * tilt, sx, sy]));
         path.addPath(shape);
