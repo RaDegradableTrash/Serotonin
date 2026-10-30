@@ -1,6 +1,13 @@
 import { useEffect, useRef } from 'react';
 import './Terminal.css';
 
+type Wave = { x: number; y: number; age: number; speed: number; duration: number };
+
+const smooth = (value: number) => {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
+};
+
 type Tile = { x: number; y: number; scale: number; velocity: number; tone: string };
 
 export default function Terminal() {
@@ -13,7 +20,7 @@ export default function Terminal() {
     let tiles: Tile[] = [];
     let frame = 0, previous = 0;
     const follower = { x: 0, y: 0, vx: 0, vy: 0 };
-    const impulse = { x: 0, y: 0, age: 100 };
+    let waves: Wave[] = [];
     const pointer = { x: 0, y: 0, active: false, down: false };
     const angle = -12 * Math.PI / 180;
     const cos = Math.cos(angle), sin = Math.sin(angle), tilt = .93;
@@ -47,7 +54,9 @@ export default function Terminal() {
     const down = (event: PointerEvent) => {
       if (event.button !== 0) return;
       locate(event); pointer.down = true;
-      impulse.x = pointer.x; impulse.y = pointer.y; impulse.age = 0;
+      const reach = Math.hypot(Math.max(pointer.x, width - pointer.x), Math.max(pointer.y, height - pointer.y)) + cell;
+      const speed = reach / 1.05;
+      waves.push({ x: pointer.x, y: pointer.y, age: 0, speed, duration: reach / speed + .95 });
       canvas.setPointerCapture(event.pointerId);
     };
     const up = (event: PointerEvent) => {
@@ -56,7 +65,7 @@ export default function Terminal() {
       if (event.pointerType === 'touch') pointer.active = false;
     };
     const leave = () => { if (!pointer.down) pointer.active = false; };
-    const reset = () => { pointer.down = false; pointer.active = false; impulse.age = 100; };
+    const reset = () => { pointer.down = false; pointer.active = false; };
     canvas.addEventListener('pointermove', locate);
     canvas.addEventListener('pointerdown', down);
     canvas.addEventListener('pointerup', up);
@@ -70,25 +79,24 @@ export default function Terminal() {
       const dt = Math.min((time - (previous || time)) / 1000, 1 / 30);
       previous = time;
       if (document.hidden) return;
-      impulse.age += dt;
+      for (const wave of waves) wave.age += dt;
+      waves = waves.filter(wave => wave.age < wave.duration);
       // A damped follower carries momentum through direction changes.
       if (reduced.matches) { follower.x = pointer.x; follower.y = pointer.y; }
       else {
-        const steps = Math.max(1, Math.ceil(dt / .008));
+        const steps = Math.max(1, Math.ceil(dt / .002));
         const step = dt / steps;
         for (let i = 0; i < steps; i++) {
-          follower.vx += ((pointer.x - follower.x) * 121 - follower.vx * 17) * step;
-          follower.vy += ((pointer.y - follower.y) * 121 - follower.vy * 17) * step;
+          follower.vx += ((pointer.x - follower.x) * 3025 - follower.vx * 85) * step;
+          follower.vy += ((pointer.y - follower.y) * 3025 - follower.vy * 85) * step;
           follower.x += follower.vx * step; follower.y += follower.vy * step;
         }
       }
-      const pressure = pointer.down ? 1 : Math.exp(-Math.max(0, impulse.age - .32) * 4.5);
       const radius = Math.min(width, height) * .21;
-      const clickRadius = radius * (1 + Math.min(impulse.age / .35, 1));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = '#002FA7';
       ctx.fillRect(0, 0, width, height);
-      const visible: { tile: Tile; points: number[] }[] = [];
+      const visible: { tile: Tile; shape: Path2D }[] = [];
       const path = new Path2D();
       for (const tile of tiles) {
         const sx = width / 2 + tile.x * cos - tile.y * sin;
@@ -97,15 +105,21 @@ export default function Terminal() {
         const distance = Math.hypot(sx - follower.x, sy - follower.y);
         const t = Math.max(0, 1 - distance / radius);
         const falloff = t * t * (3 - 2 * t);
-        const clickDistance = Math.hypot(sx - impulse.x, sy - impulse.y);
-        const ct = Math.max(0, 1 - clickDistance / clickRadius);
-        const clickFalloff = ct * ct * (3 - 2 * ct);
+        // Each click has its own outward opening and outward recovery front.
+        // Maximum influence composes waves without one click resetting another.
+        let waveShrink = 0;
+        for (const wave of waves) {
+          const localTime = wave.age - Math.hypot(sx - wave.x, sy - wave.y) / wave.speed;
+          const opening = smooth(localTime / .12);
+          const recovery = smooth((localTime - .38) / .42);
+          waveShrink = Math.max(waveShrink, opening * (1 - recovery));
+        }
         const hoverShrink = pointer.active ? .78 * falloff : 0;
-        const target = Math.max(0, 1 - Math.max(hoverShrink, 1.9 * pressure * clickFalloff));
+        const target = Math.max(0, 1 - Math.max(hoverShrink, waveShrink));
         if (reduced.matches) { tile.scale = target; tile.velocity = 0; }
         else {
           // Critically damped spring: quick opening, softer recovery, no bounce.
-          const omega = target < tile.scale ? 23 : 10;
+          const omega = target < tile.scale ? 115 : 50;
           const offset = tile.scale - target;
           const temp = (tile.velocity + omega * offset) * dt;
           const decay = Math.exp(-omega * dt);
@@ -115,14 +129,13 @@ export default function Terminal() {
         // Fully close the resting mask; no strokes or artificial grout lines.
         if (tile.scale < .04) continue;
         const half = (cell + .45) * Math.max(0, Math.min(1, tile.scale)) / 2;
-        const points: number[] = [];
-        for (const [x, y] of [[-half, -half], [half, -half], [half, half], [-half, half]]) {
-          points.push(sx + x * cos - y * sin, sy + (x * sin + y * cos) * tilt);
-        }
-        path.moveTo(points[0], points[1]);
-        for (let i = 2; i < 8; i += 2) path.lineTo(points[i], points[i + 1]);
-        path.closePath();
-        visible.push({ tile, points });
+        const corner = half * Math.pow(1 - Math.min(1, tile.scale), .65);
+        const local = new Path2D();
+        local.roundRect(-half, -half, half * 2, half * 2, corner);
+        const shape = new Path2D();
+        shape.addPath(local, new DOMMatrix([cos, sin * tilt, -sin, cos * tilt, sx, sy]));
+        path.addPath(shape);
+        visible.push({ tile, shape });
       }
       // All tiles cast one coherent shadow, at 60 degrees in screen space.
       ctx.save();
@@ -133,10 +146,8 @@ export default function Terminal() {
       ctx.fillStyle = '#f8f8f6';
       ctx.fill(path);
       ctx.restore();
-      for (const { tile, points } of visible) {
-        ctx.beginPath(); ctx.moveTo(points[0], points[1]);
-        for (let i = 2; i < 8; i += 2) ctx.lineTo(points[i], points[i + 1]);
-        ctx.closePath(); ctx.fillStyle = tile.tone; ctx.fill();
+      for (const { tile, shape } of visible) {
+        ctx.fillStyle = tile.tone; ctx.fill(shape);
       }
     };
     frame = requestAnimationFrame(draw);
