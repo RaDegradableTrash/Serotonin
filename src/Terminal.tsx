@@ -133,7 +133,7 @@ export default function Terminal() {
       const renderScales = tiles.map(tile => {
         const scale = Math.max(0, Math.min(1, tile.scale));
         // Ease away subpixel slits before they become isolated blue hairs.
-        return scale + (1 - scale) * smooth((scale - .94) / .04);
+        return scale >= .85 ? 1 : scale;
       });
       for (const [index, tile] of tiles.entries()) {
         const sx = width / 2 + tile.x * cos - tile.y * sin;
@@ -145,8 +145,8 @@ export default function Terminal() {
         const half = (cell + .65) * Math.min(1, scale) / 2;
         const full = (cell + .65) / 2;
         // Seal a lightly shrunken tile against its resting neighbors. Blend
-        // between 8% and 12% shrink so a moving wave cannot pop the seam.
-        const seal = smooth((scale - .88) / .04);
+        // between 18% and 25% shrink so a moving wave cannot pop the seam.
+        const seal = smooth((scale - .75) / .07);
         const resting = (offset: number) => (renderScales[index + offset] ?? 1) >= .995;
         const left = resting(-1) ? seal : 0;
         const right = resting(1) ? seal : 0;
@@ -157,16 +157,24 @@ export default function Terminal() {
         const y0 = -half - (full - half) * top;
         const y1 = half + (full - half) * bottom;
         const corner = half * Math.pow(1 - Math.min(1, scale), .65);
-        // Shared edges are flat; round only the corners exposed to blue.
-        // This closes pinholes at junctions without adding rounded bulges.
-        const corners = [
-          corner * (1 - Math.max(left, top)),
-          corner * (1 - Math.max(right, top)),
-          corner * (1 - Math.max(right, bottom)),
-          corner * (1 - Math.max(left, bottom)),
-        ];
+        // A connected edge needs a concave fillet into the exposed edge,
+        // rather than a square corner or a convex notch at the join.
         const local = new Path2D();
-        local.roundRect(x0, y0, x1 - x0, y1 - y0, corners);
+        const corners = [
+          { x: x0, y: y0, ix: 0, iy: -1, ox: 1, oy: 0, a: left, b: top },
+          { x: x1, y: y0, ix: 1, iy: 0, ox: 0, oy: 1, a: top, b: right },
+          { x: x1, y: y1, ix: 0, iy: 1, ox: -1, oy: 0, a: right, b: bottom },
+          { x: x0, y: y1, ix: -1, iy: 0, ox: 0, oy: -1, a: bottom, b: left },
+        ];
+        for (const [i, c] of corners.entries()) {
+          const r = Math.max(corner, cell * .12 * Math.abs(c.a - c.b) * smooth((1 - scale) / .1)) * (1 - Math.min(c.a, c.b));
+          const incoming = r * (1 - 2 * c.a * (1 - c.b));
+          const outgoing = r * (1 - 2 * c.b * (1 - c.a));
+          const ax = c.x - c.ix * incoming, ay = c.y - c.iy * incoming;
+          if (i === 0) local.moveTo(ax, ay); else local.lineTo(ax, ay);
+          local.quadraticCurveTo(c.x, c.y, c.x + c.ox * outgoing, c.y + c.oy * outgoing);
+        }
+        local.closePath();
         const shape = new Path2D();
         shape.addPath(local, new DOMMatrix([cos, sin * tilt, -sin, cos * tilt, sx, sy]));
         path.addPath(shape);
