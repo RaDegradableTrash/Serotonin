@@ -13,11 +13,14 @@ type Tile = { x: number; y: number; scale: number; velocity: number; shiftX: num
 export default function Terminal() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panelRef = useRef<HTMLAnchorElement>(null);
+  const glassRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
     const stage = canvas?.parentElement;
     const panel = panelRef.current;
     const ctx = canvas?.getContext('2d');
+    const glass = glassRef.current;
+    const glassCtx = glass?.getContext('2d');
     if (!canvas || !ctx || !stage || !panel) return;
     let navigating = false, departed = false;
     let width = 0, height = 0, cell = 21, dpr = 1;
@@ -227,6 +230,21 @@ export default function Terminal() {
       for (const { tile, shape } of visible) {
         ctx.fillStyle = tile.tone; ctx.fill(shape);
       }
+      // Sample the actual canvas into a tiny texture. This remains diffuse even
+      // when a browser cannot composite backdrop-filter through a 3D transform.
+      if (glass && glassCtx) {
+        const bounds = panel.getBoundingClientRect();
+        const source = canvas.getBoundingClientRect();
+        const margin = 70;
+        const left = Math.max(0, bounds.left - source.left - margin);
+        const top = Math.max(0, bounds.top - source.top - margin);
+        const right = Math.min(width, bounds.right - source.left + margin);
+        const bottom = Math.min(height, bounds.bottom - source.top + margin);
+        if (right > left && bottom > top) {
+          glassCtx.drawImage(canvas, left * dpr, top * dpr,
+            (right - left) * dpr, (bottom - top) * dpr, 0, 0, glass.width, glass.height);
+        }
+      }
     };
     frame = requestAnimationFrame(draw);
     return () => {
@@ -243,6 +261,7 @@ export default function Terminal() {
   }, []);
   return <main className="tile-stage"><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" />
     <a ref={panelRef} className="glass-panel" href="/brain_in_vat">
+      <canvas ref={glassRef} className="glass-panel__diffusion" width={6} height={12} aria-hidden="true" />
       <span className="glass-panel__eyebrow">EXPLORE <span aria-hidden="true">↗</span></span>
       <span className="glass-panel__title">缸中之脑</span>
       <span className="glass-panel__description">BRAIN IN A VAT</span>
