@@ -15,9 +15,11 @@ async function boot() {
     return;
   }
   if (/^\/terminal\/?$/.test(location.pathname)) {
+    const revealTerminal = history.state?.revealTerminal === true;
+    if (revealTerminal) history.replaceState(null, '', location.href);
     const { default: Terminal } = await import('./Terminal');
     document.title = 'DUSTLAND / Ragon — personal terminal';
-    root.render(<StrictMode><Terminal /></StrictMode>);
+    root.render(<StrictMode><Terminal reveal={revealTerminal} /></StrictMode>);
     return;
   }
   const result = await prepareDomain();

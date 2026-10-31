@@ -11,7 +11,7 @@ const smooth = (value: number) => {
 
 type Tile = { x: number; y: number; scale: number; velocity: number; shiftX: number; shiftY: number; driftX: number; driftY: number; tone: string };
 
-export default function Terminal() {
+export default function Terminal({ reveal = false }: { reveal?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panelRef = useRef<HTMLAnchorElement>(null);
   const glassRef = useRef<HTMLCanvasElement>(null);
@@ -25,6 +25,7 @@ export default function Terminal() {
     let glassInitialized = false;
     if (!canvas || !ctx || !stage || !panel) return;
     let navigating = false, departed = false;
+    let revealing = reveal, revealAge = 0;
     let width = 0, height = 0, cell = 21, dpr = 1;
     let tiles: Tile[] = [];
     let frame = 0, previous = 0;
@@ -57,7 +58,7 @@ export default function Terminal() {
           const sx = p.x, sy = p.y;
           if (sx < -cell * 2 || sx > width + cell * 2 || sy < -cell * 2 || sy > height + cell * 2) continue;
           const tone = 246 + ((Math.imul(col + 101, 73) ^ Math.imul(row + 103, 37)) >>> 0) % 6;
-          tiles.push({ x: col * cell, y: row * cell, scale: 1, velocity: 0, shiftX: 0, shiftY: 0, driftX: 0, driftY: 0, tone: `rgb(${tone},${tone},${tone - 2})` });
+          tiles.push({ x: col * cell, y: row * cell, scale: revealing ? 0 : 1, velocity: 0, shiftX: 0, shiftY: 0, driftX: 0, driftY: 0, tone: `rgb(${tone},${tone},${tone - 2})` });
         }
       }
     };
@@ -72,7 +73,7 @@ export default function Terminal() {
       pointer.active = true;
     };
     const down = (event: PointerEvent) => {
-      if (event.button !== 0 || navigating) return;
+      if (event.button !== 0 || navigating || revealing) return;
       locate(event); pointer.down = true;
       const reach = Math.hypot(Math.max(pointer.x, width - pointer.x), Math.max(pointer.y, height - pointer.y)) + cell;
       const speed = reach / 1.05;
@@ -89,7 +90,7 @@ export default function Terminal() {
     const navigate = (event: MouseEvent) => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
-      if (navigating) return;
+      if (navigating || revealing) return;
       navigating = true;
       const rect = canvas.getBoundingClientRect();
       const panelRect = panel.getBoundingClientRect();
@@ -122,6 +123,13 @@ export default function Terminal() {
       const dt = Math.min((time - (previous || time)) / 1000, 1 / 30);
       previous = time;
       if (document.hidden) return;
+      if (revealing) {
+        revealAge += dt;
+        if (revealAge >= (reduced.matches ? .01 : 1.6)) {
+          revealing = false;
+          delete stage.dataset.revealing;
+        }
+      }
       for (const wave of waves) wave.age += dt;
       waves = waves.filter(wave => wave.age < wave.duration);
       // A damped follower carries momentum through direction changes.
@@ -151,7 +159,7 @@ export default function Terminal() {
         // Evaluate from resting centers so repulsion never feeds back or jitters.
         // The near field responds quickly; the fringe has a quiet, lingering drift.
         const repulsionFalloff = smooth(1 - distance / (radius * 1.8));
-        const weight = pointer.active && !navigating ? repulsionFalloff ** 1.5 : 0;
+        const weight = pointer.active && !navigating && !revealing ? repulsionFalloff ** 1.5 : 0;
         const travel = Math.min(22, 12 / p.depth) * weight;
         const directionLength = Math.max(distance, 1);
         const targetX = (sx - follower.x) / directionLength * travel;
@@ -180,12 +188,16 @@ export default function Terminal() {
           const recovery = wave.exit ? 0 : smooth((localTime - .38) / .42);
           waveShrink = Math.max(waveShrink, opening * (1 - recovery));
         }
-        const hoverShrink = pointer.active ? .78 * falloff : 0;
-        const target = Math.max(0, 1 - Math.max(hoverShrink, waveShrink));
+        const hoverShrink = pointer.active && !revealing ? .78 * falloff : 0;
+        const revealDistance = Math.hypot(sx - width / 2, sy - height / 2);
+        const revealSpeed = Math.hypot(width / 2, height / 2) / 1.05;
+        const revealScale = revealing && !reduced.matches
+          ? smooth((revealAge - revealDistance / revealSpeed) / .32) : 1;
+        const target = Math.min(revealScale, Math.max(0, 1 - Math.max(hoverShrink, waveShrink)));
         if (reduced.matches) { tile.scale = target; tile.velocity = 0; }
         else {
           // Click waves keep their original response; hover remains slower.
-          const omega = wavePassing
+          const omega = wavePassing || revealing
             ? (target < tile.scale ? 115 : 50)
             : (target < tile.scale ? 16 : 9);
           const offset = tile.scale - target;
@@ -264,8 +276,8 @@ export default function Terminal() {
       canvas.removeEventListener('pointercancel', reset);
       window.removeEventListener('blur', reset);
     };
-  }, []);
-  return <main className="tile-stage"><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" />
+  }, [reveal]);
+  return <main className="tile-stage" data-revealing={reveal || undefined}><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" />
     <a ref={panelRef} className="glass-panel" href="/brain_in_vat">
       <canvas ref={glassRef} className="glass-panel__diffusion" width={6} height={12} aria-hidden="true" />
       <span className="glass-panel__eyebrow">EXPLORE <span aria-hidden="true">↗</span></span>
