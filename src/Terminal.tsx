@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import './Terminal.css';
 
-type Wave = { x: number; y: number; age: number; speed: number; duration: number };
+type Wave = { x: number; y: number; age: number; speed: number; duration: number; exit?: boolean };
 
 const smooth = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
@@ -12,10 +12,14 @@ type Tile = { x: number; y: number; scale: number; velocity: number; tone: strin
 
 export default function Terminal() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const panelRef = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
+    const stage = canvas?.parentElement;
+    const panel = panelRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
+    if (!canvas || !ctx || !stage || !panel) return;
+    let navigating = false, departed = false;
     let width = 0, height = 0, cell = 21, dpr = 1;
     let tiles: Tile[] = [];
     let frame = 0, previous = 0;
@@ -55,7 +59,7 @@ export default function Terminal() {
       pointer.active = true;
     };
     const down = (event: PointerEvent) => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || navigating) return;
       locate(event); pointer.down = true;
       const reach = Math.hypot(Math.max(pointer.x, width - pointer.x), Math.max(pointer.y, height - pointer.y)) + cell;
       const speed = reach / 1.05;
@@ -69,10 +73,33 @@ export default function Terminal() {
     };
     const leave = () => { if (!pointer.down) pointer.active = false; };
     const reset = () => { pointer.down = false; pointer.active = false; };
-    canvas.addEventListener('pointermove', locate);
+    const navigate = (event: MouseEvent) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      if (navigating) return;
+      navigating = true;
+      const rect = canvas.getBoundingClientRect();
+      const panelRect = panel.getBoundingClientRect();
+      const x = event.detail === 0 ? panelRect.left + panelRect.width / 2 - rect.left : event.clientX - rect.left;
+      const y = event.detail === 0 ? panelRect.top + panelRect.height / 2 - rect.top : event.clientY - rect.top;
+      const reach = Math.hypot(Math.max(x, width - x), Math.max(y, height - y)) + cell * 2;
+      waves.push({ x, y, age: 0, speed: reach / (reduced.matches ? .15 : 1.05), duration: Infinity, exit: true });
+      stage.dataset.navigating = 'true';
+      panel.setAttribute('aria-busy', 'true');
+    };
+    const restore = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      navigating = false; departed = false; waves = []; reset();
+      tiles.forEach(tile => { tile.scale = 1; tile.velocity = 0; });
+      delete stage.dataset.navigating;
+      panel.removeAttribute('aria-busy');
+    };
+    panel.addEventListener('click', navigate);
+    window.addEventListener('pageshow', restore);
+    stage.addEventListener('pointermove', locate);
     canvas.addEventListener('pointerdown', down);
     canvas.addEventListener('pointerup', up);
-    canvas.addEventListener('pointerleave', leave);
+    stage.addEventListener('pointerleave', leave);
     canvas.addEventListener('pointercancel', reset);
     window.addEventListener('blur', reset);
     const observer = new ResizeObserver(resize);
@@ -114,9 +141,9 @@ export default function Terminal() {
         let wavePassing = false;
         for (const wave of waves) {
           const localTime = wave.age - Math.hypot(sx - wave.x, sy - wave.y) / wave.speed;
-          if (localTime >= 0 && localTime < .95) wavePassing = true;
+          if (localTime >= 0 && (wave.exit || localTime < .95)) wavePassing = true;
           const opening = smooth(localTime / .12);
-          const recovery = smooth((localTime - .38) / .42);
+          const recovery = wave.exit ? 0 : smooth((localTime - .38) / .42);
           waveShrink = Math.max(waveShrink, opening * (1 - recovery));
         }
         const hoverShrink = pointer.active ? .78 * falloff : 0;
@@ -150,6 +177,11 @@ export default function Terminal() {
         path.addPath(shape);
         visible.push({ tile, shape });
       }
+      if (navigating && !departed && visible.length === 0) {
+        departed = true;
+        // Navigate only once the last tile has disappeared; never close the mask.
+        window.location.assign(panel.href);
+      }
       // All tiles cast one coherent shadow, at 60 degrees in screen space.
       ctx.save();
       ctx.shadowColor = 'rgba(0, 12, 55, .48)';
@@ -166,13 +198,22 @@ export default function Terminal() {
     frame = requestAnimationFrame(draw);
     return () => {
       cancelAnimationFrame(frame); observer.disconnect();
-      canvas.removeEventListener('pointermove', locate);
+      stage.removeEventListener('pointermove', locate);
+      panel.removeEventListener('click', navigate);
+      window.removeEventListener('pageshow', restore);
       canvas.removeEventListener('pointerdown', down);
       canvas.removeEventListener('pointerup', up);
-      canvas.removeEventListener('pointerleave', leave);
+      stage.removeEventListener('pointerleave', leave);
       canvas.removeEventListener('pointercancel', reset);
       window.removeEventListener('blur', reset);
     };
   }, []);
-  return <main className="tile-stage"><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" /></main>;
+  return <main className="tile-stage"><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" />
+    <a ref={panelRef} className="glass-panel" href="/productivity/">
+      <span className="glass-panel__eyebrow">PERSONAL SPACE <span aria-hidden="true">↗</span></span>
+      <span className="glass-panel__title">效率空间</span>
+      <span className="glass-panel__description">日历 · 待办 · 音乐</span>
+      <span className="glass-panel__action">进入空间 <span aria-hidden="true">→</span></span>
+    </a>
+  </main>;
 }
