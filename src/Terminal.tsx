@@ -23,6 +23,12 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
     const glass = glassRef.current;
     const glassCtx = glass?.getContext('2d');
     let glassInitialized = false;
+    const sample = document.createElement('canvas');
+    const sampleCtx = sample.getContext('2d', { willReadFrequently: true });
+    const atlas = document.createElement('canvas');
+    const atlasCtx = atlas.getContext('2d');
+    const glyphs = ' .:-=+*#%@';
+    let glyphWidth = 6, glyphHeight = 10, atlasWidth = 6, atlasHeight = 10;
     if (!canvas || !ctx || !stage || !panel) return;
     let navigating = false, departed = false;
     let revealing = reveal, revealAge = 0;
@@ -46,6 +52,24 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
       dpr = Math.min(devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
       cell = Math.max(28, Math.min(46, width / 30)) / 2;
+      // Fixed screen-space text cells sample the complete projected image.
+      glyphWidth = Math.max(6, width / 240);
+      glyphHeight = glyphWidth * 1.6;
+      sample.width = Math.max(1, Math.ceil(width / glyphWidth));
+      sample.height = Math.max(1, Math.ceil(height / glyphHeight));
+      atlasWidth = Math.ceil(glyphWidth * dpr);
+      atlasHeight = Math.ceil(glyphHeight * dpr);
+      atlas.width = atlasWidth * glyphs.length;
+      atlas.height = atlasHeight;
+      if (atlasCtx) {
+        atlasCtx.font = 'bold ' + (glyphHeight * dpr) + 'px monospace';
+        atlasCtx.textAlign = 'center'; atlasCtx.textBaseline = 'middle';
+        for (let i = 1; i < glyphs.length; i++) {
+          const light = i / (glyphs.length - 1);
+          atlasCtx.fillStyle = 'rgb(' + Math.round(248 * light) + ',' + Math.round(47 + 201 * light) + ',' + Math.round(167 + 79 * light) + ')';
+          atlasCtx.fillText(glyphs[i], (i + .5) * atlasWidth, atlasHeight * .52, atlasWidth);
+        }
+      }
       const reach = Math.hypot(width, height) * 2 + cell * 2;
       const focal = height * 1.1;
       stage.style.setProperty('--grid-plane', `matrix3d(${cos},${sin * tilt},0,${-sin / focal},${-sin},${cos * tilt},0,${-cos / focal},0,0,1,0,0,0,0,1)`);
@@ -263,6 +287,26 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
           glassInitialized = true;
         }
       }
+      // Convert the finished live frame, rather than decorating individual tiles.
+      // Read only the small sampling texture; cached glyphs avoid per-frame text layout.
+      if (sampleCtx && atlasCtx) {
+        sampleCtx.drawImage(canvas, 0, 0, sample.width, sample.height);
+        const pixels = sampleCtx.getImageData(0, 0, sample.width, sample.height).data;
+        ctx.fillStyle = '#002fa7';
+        ctx.fillRect(0, 0, width, height);
+        for (let row = 0; row < sample.height; row++) {
+          for (let col = 0; col < sample.width; col++) {
+            const offset = (row * sample.width + col) * 4;
+            const luminance = pixels[offset] * .2126 + pixels[offset + 1] * .7152 + pixels[offset + 2] * .0722;
+            // The blue floor maps to empty space, so route transitions remain solid blue.
+            const light = Math.max(0, Math.min(1, (luminance - 46) / 202));
+            const glyph = Math.round(light * (glyphs.length - 1));
+            if (!glyph) continue;
+            ctx.drawImage(atlas, glyph * atlasWidth, 0, atlasWidth, atlasHeight,
+              col * glyphWidth, row * glyphHeight, glyphWidth, glyphHeight);
+          }
+        }
+      }
     };
     frame = requestAnimationFrame(draw);
     return () => {
@@ -277,7 +321,7 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
       window.removeEventListener('blur', reset);
     };
   }, [reveal]);
-  return <main className="tile-stage" data-revealing={reveal || undefined}><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" />
+  return <main className="tile-stage" data-revealing={reveal || undefined}><canvas ref={canvasRef} className="tile-field" aria-label="实时蓝白背景的 ASCII 图像：移动鼠标展开底板，点击播放波浪" />
     <a ref={panelRef} className="glass-panel" href="/brain_in_vat">
       <canvas ref={glassRef} className="glass-panel__diffusion" width={6} height={12} aria-hidden="true" />
       <span className="glass-panel__eyebrow">EXPLORE <span aria-hidden="true">↗</span></span>
