@@ -145,7 +145,8 @@ export default function Terminal() {
         const falloff = t * t * (3 - 2 * t);
         // Evaluate from resting centers so repulsion never feeds back or jitters.
         // The near field responds quickly; the fringe has a quiet, lingering drift.
-        const weight = pointer.active && !navigating ? falloff ** 1.5 : 0;
+        const repulsionFalloff = smooth(1 - distance / (radius * 1.8));
+        const weight = pointer.active && !navigating ? repulsionFalloff ** 1.5 : 0;
         const travel = Math.min(22, 12 / p.depth) * weight;
         const directionLength = Math.max(distance, 1);
         const targetX = (sx - follower.x) / directionLength * travel;
@@ -198,9 +199,8 @@ export default function Terminal() {
         // Preserve continuous spring-driven scaling through the entire size range.
         const scale = Math.max(0, Math.min(1, tile.scale));
         const half = (cell + .65) * Math.min(1, scale) / 2;
-        // Blend translation out as the mask closes, keeping resting tiles seamless.
-        const clearance = smooth((1 - scale) / .2);
-        const shiftX = tile.shiftX * clearance, shiftY = tile.shiftY * clearance;
+        // Repulsion extends beyond the shrinking area and settles independently.
+        const shiftX = tile.shiftX, shiftY = tile.shiftY;
         const shape = new Path2D();
         for (const [i, [dx, dy]] of [[-half,-half],[half,-half],[half,half],[-half,half]].entries()) {
           const corner = project(tile.x + dx, tile.y + dy);
