@@ -3,14 +3,14 @@ body:has(.tile-stage){margin:0;min-width:0;overflow:hidden;background:#002fa7}
 .tile-field{display:block;width:100%;height:100%;touch-action:none}
 /* Retained for the standalone 3D-to-ASCII renderer. */
 .ascii-heart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:78%;height:74%;pointer-events:none}
-.glass-panel{position:absolute;left:50%;top:50%;display:flex;flex-direction:column;width:min(360px,calc(100vw - 48px));box-sizing:border-box;padding:30px 32px 26px;border-radius:28px;border:1px solid rgba(255,255,255,.75);background:linear-gradient(135deg,rgba(255,255,255,.57),rgba(255,255,255,.23));backdrop-filter:blur(18px) saturate(155%);-webkit-backdrop-filter:blur(18px) saturate(155%);box-shadow:0 14px 45px #17395a12,inset 0 1px 1px #ffffffd9,inset 0 -1px 1px #ffffff55;color:#12284c;text-decoration:none;cursor:pointer;transform:translate(-50%,-50%) scale(1);transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s;will-change:transform;-webkit-tap-highlight-color:transparent}
-.glass-panel:hover{transform:translate(-50%,-50%) scale(1.045);box-shadow:0 20px 55px #092b5a24,inset 0 1px 1px #ffffffe6}
-.glass-panel:focus-visible{outline:2px solid #002fa7;outline-offset:6px;transform:translate(-50%,-50%) scale(1.045)}
-.glass-panel__eyebrow{display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:600;letter-spacing:.17em;color:#29416c}
+.glass-panel{position:absolute;left:50%;top:50%;display:flex;flex-direction:column;width:120px;height:276px;box-sizing:border-box;padding:20px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.75);background:linear-gradient(135deg,rgba(255,255,255,.57),rgba(255,255,255,.23));backdrop-filter:blur(64px) saturate(155%);-webkit-backdrop-filter:blur(64px) saturate(155%);box-shadow:0 14px 45px #17395a12,inset 0 1px 1px #ffffffd9,inset 0 -1px 1px #ffffff55;color:#12284c;text-decoration:none;cursor:pointer;transform:translate(-50%,-50%) var(--grid-plane) scale(1);transition:transform .3s cubic-bezier(.2,.8,.2,1),box-shadow .3s;will-change:transform;-webkit-tap-highlight-color:transparent}
+.glass-panel:hover{transform:translate(-50%,-50%) var(--grid-plane) scale(1.045);box-shadow:0 20px 55px #092b5a24,inset 0 1px 1px #ffffffe6}
+.glass-panel:focus-visible{outline:2px solid #002fa7;outline-offset:6px;transform:translate(-50%,-50%) var(--grid-plane) scale(1.045)}
+.glass-panel__eyebrow{display:flex;justify-content:space-between;align-items:center;font-size:10px;font-weight:600;letter-spacing:.08em;color:#29416c}
 .glass-panel__eyebrow span{font-size:20px;letter-spacing:0;font-weight:400}
-.glass-panel__title{font-size:32px;line-height:1.2;font-weight:550;letter-spacing:-.04em;margin-top:32px}
-.glass-panel__description{font-size:13px;line-height:1.8;margin-top:12px;color:#3c4e68}
+.glass-panel__title{font-size:22px;line-height:1.2;font-weight:550;letter-spacing:-.04em;margin-top:24px}
+.glass-panel__description{font-size:10px;line-height:1.8;margin-top:12px;color:#3c4e68}
 .glass-panel__action{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:500;margin-top:32px;padding-top:18px;border-top:1px solid #ffffff80}
 .tile-stage[data-navigating=true] .glass-panel{pointer-events:none;animation:glass-depart .65s cubic-bezier(.2,.8,.2,1) forwards}
-@keyframes glass-depart{0%{transform:translate(-50%,-50%) scale(1.045);opacity:1}20%{transform:translate(-50%,-50%) scale(.96);opacity:1}46%{transform:translate(-50%,-50%) scale(1.065);opacity:1}65%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(.98);opacity:0}}
+@keyframes glass-depart{0%{transform:translate(-50%,-50%) var(--grid-plane) scale(1.045);opacity:1}20%{transform:translate(-50%,-50%) var(--grid-plane) scale(.96);opacity:1}46%{transform:translate(-50%,-50%) var(--grid-plane) scale(1.065);opacity:1}65%{transform:translate(-50%,-50%) var(--grid-plane) scale(1);opacity:1}100%{transform:translate(-50%,-50%) var(--grid-plane) scale(.98);opacity:0}}
 @media(prefers-reduced-motion:reduce){.glass-panel{transition:none}.tile-stage[data-navigating=true] .glass-panel{animation-duration:.15s}}

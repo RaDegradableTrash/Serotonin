@@ -28,6 +28,11 @@ export default function Terminal() {
     const pointer = { x: 0, y: 0, active: false, down: false };
     const angle = -12 * Math.PI / 180;
     const cos = Math.cos(angle), sin = Math.sin(angle), tilt = .93;
+    const project = (x: number, y: number) => {
+      const rx = x * cos - y * sin, ry = x * sin + y * cos;
+      const depth = 1 - ry / (height * 1.1);
+      return { x: width / 2 + rx / depth, y: height / 2 + ry * tilt / depth, depth };
+    };
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
@@ -35,13 +40,16 @@ export default function Terminal() {
       dpr = Math.min(devicePixelRatio || 1, 2);
       canvas.width = Math.round(width * dpr); canvas.height = Math.round(height * dpr);
       cell = Math.max(28, Math.min(46, width / 30)) / 2;
-      const reach = Math.hypot(width, height) / 2 / tilt + cell * 2;
+      const reach = Math.hypot(width, height) * 2 + cell * 2;
+      const focal = height * 1.1;
+      stage.style.setProperty('--grid-plane', `matrix3d(${cos},${sin * tilt},0,${-sin / focal},${-sin},${cos * tilt},0,${-cos / focal},0,0,1,0,0,0,0,1)`);
       const count = Math.ceil(reach / cell);
       tiles = [];
       for (let row = -count; row <= count; row++) {
         for (let col = -count; col <= count; col++) {
-          const sx = width / 2 + col * cell * cos - row * cell * sin;
-          const sy = height / 2 + (col * cell * sin + row * cell * cos) * tilt;
+          const p = project(col * cell, row * cell);
+          if (p.depth <= .15) continue;
+          const sx = p.x, sy = p.y;
           if (sx < -cell * 2 || sx > width + cell * 2 || sy < -cell * 2 || sy > height + cell * 2) continue;
           const tone = 246 + ((Math.imul(col + 101, 73) ^ Math.imul(row + 103, 37)) >>> 0) % 6;
           tiles.push({ x: col * cell, y: row * cell, scale: 1, velocity: 0, tone: `rgb(${tone},${tone},${tone - 2})` });
@@ -129,9 +137,9 @@ export default function Terminal() {
       const visible: { tile: Tile; shape: Path2D }[] = [];
       const path = new Path2D();
       for (const tile of tiles) {
-        const sx = width / 2 + tile.x * cos - tile.y * sin;
-        const sy = height / 2 + (tile.x * sin + tile.y * cos) * tilt;
-        if (sx < -cell || sx > width + cell || sy < -cell || sy > height + cell) continue;
+        const p = project(tile.x, tile.y);
+        const sx = p.x, sy = p.y;
+        if (sx < -cell * 2 || sx > width + cell * 2 || sy < -cell * 2 || sy > height + cell * 2) continue;
         const distance = Math.hypot(sx - follower.x, sy - follower.y);
         const t = Math.max(0, 1 - distance / radius);
         const falloff = t * t * (3 - 2 * t);
@@ -162,18 +170,20 @@ export default function Terminal() {
         }
       }
       for (const tile of tiles) {
-        const sx = width / 2 + tile.x * cos - tile.y * sin;
-        const sy = height / 2 + (tile.x * sin + tile.y * cos) * tilt;
-        if (sx < -cell || sx > width + cell || sy < -cell || sy > height + cell) continue;
+        const p = project(tile.x, tile.y);
+        const sx = p.x, sy = p.y;
+        if (sx < -cell * 2 || sx > width + cell * 2 || sy < -cell * 2 || sy > height + cell * 2) continue;
         // Fully close the resting mask; no strokes or artificial grout lines.
         if (tile.scale < .04) continue;
         // Preserve continuous spring-driven scaling through the entire size range.
         const scale = Math.max(0, Math.min(1, tile.scale));
         const half = (cell + .65) * Math.min(1, scale) / 2;
-        const local = new Path2D();
-        local.rect(-half, -half, half * 2, half * 2);
         const shape = new Path2D();
-        shape.addPath(local, new DOMMatrix([cos, sin * tilt, -sin, cos * tilt, sx, sy]));
+        for (const [i, [dx, dy]] of [[-half,-half],[half,-half],[half,half],[-half,half]].entries()) {
+          const corner = project(tile.x + dx, tile.y + dy);
+          if (i === 0) shape.moveTo(corner.x, corner.y); else shape.lineTo(corner.x, corner.y);
+        }
+        shape.closePath();
         path.addPath(shape);
         visible.push({ tile, shape });
       }
@@ -209,11 +219,11 @@ export default function Terminal() {
     };
   }, []);
   return <main className="tile-stage"><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" />
-    <a ref={panelRef} className="glass-panel" href="/productivity/">
-      <span className="glass-panel__eyebrow">PERSONAL SPACE <span aria-hidden="true">↗</span></span>
-      <span className="glass-panel__title">效率空间</span>
-      <span className="glass-panel__description">日历 · 待办 · 音乐</span>
-      <span className="glass-panel__action">进入空间 <span aria-hidden="true">→</span></span>
+    <a ref={panelRef} className="glass-panel" href="/brain_in_vat">
+      <span className="glass-panel__eyebrow">EXPLORE <span aria-hidden="true">↗</span></span>
+      <span className="glass-panel__title">缸中之脑</span>
+      <span className="glass-panel__description">BRAIN IN A VAT</span>
+      <span className="glass-panel__action">进入 <span aria-hidden="true">→</span></span>
     </a>
   </main>;
 }

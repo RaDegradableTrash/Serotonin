@@ -4,6 +4,12 @@ import './index.css'
 import { prepareDomain } from './domainMigration'
 
 async function boot() {
+  if (/^\/brain_in_vat\/?$/.test(location.pathname)) {
+    const { default: BrainInVat } = await import('./BrainInVat');
+    document.title = 'DUSTLAND / Brain in a Vat';
+    createRoot(document.getElementById('root')!).render(<StrictMode><BrainInVat /></StrictMode>);
+    return;
+  }
   if (/^\/terminal\/?$/.test(location.pathname)) {
     const { default: Terminal } = await import('./Terminal');
     document.title = 'DUSTLAND / Ragon — personal terminal';

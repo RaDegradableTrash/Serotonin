@@ -9,7 +9,7 @@ export default defineConfig({
     name: 'productivity-path',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (/^\/terminal\/?(?:\?.*)?$/.test(req.url || '')) {
+        if (/^\/(?:terminal|brain_in_vat)\/?(?:\?.*)?$/.test(req.url || '')) {
           req.url = '/productivity/' + (req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
           return next();
         }
@@ -20,7 +20,7 @@ export default defineConfig({
     },
     configurePreviewServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (/^\/terminal\/?(?:\?.*)?$/.test(req.url || '')) {
+        if (/^\/(?:terminal|brain_in_vat)\/?(?:\?.*)?$/.test(req.url || '')) {
           req.url = '/productivity/' + (req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
           return next();
         }

@@ -1,0 +1,5 @@
+body:has(.vat-page){margin:0;min-width:0;overflow:hidden;background:#002fa7}
+.vat-page{min-height:100vh;min-height:100svh;background:#002fa7}
+.vat-back{position:fixed;left:24px;top:24px;display:inline-flex;align-items:center;gap:10px;padding:12px 19px;border:1px solid #ffffff80;border-radius:12px;background:#fff;color:#002fa7;text-decoration:none;font-size:14px;transition:transform .2s,background .2s}
+.vat-back:hover{transform:translateX(-3px);background:#edf2ff}
+.vat-back:focus-visible{outline:2px solid #fff;outline-offset:5px}
