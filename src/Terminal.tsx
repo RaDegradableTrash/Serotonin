@@ -8,7 +8,7 @@ const smooth = (value: number) => {
   return t * t * (3 - 2 * t);
 };
 
-type Tile = { x: number; y: number; scale: number; velocity: number; tone: string };
+type Tile = { x: number; y: number; scale: number; velocity: number; shiftX: number; shiftY: number; driftX: number; driftY: number; tone: string };
 
 export default function Terminal() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -52,7 +52,7 @@ export default function Terminal() {
           const sx = p.x, sy = p.y;
           if (sx < -cell * 2 || sx > width + cell * 2 || sy < -cell * 2 || sy > height + cell * 2) continue;
           const tone = 246 + ((Math.imul(col + 101, 73) ^ Math.imul(row + 103, 37)) >>> 0) % 6;
-          tiles.push({ x: col * cell, y: row * cell, scale: 1, velocity: 0, tone: `rgb(${tone},${tone},${tone - 2})` });
+          tiles.push({ x: col * cell, y: row * cell, scale: 1, velocity: 0, shiftX: 0, shiftY: 0, driftX: 0, driftY: 0, tone: `rgb(${tone},${tone},${tone - 2})` });
         }
       }
     };
@@ -98,7 +98,7 @@ export default function Terminal() {
     const restore = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
       navigating = false; departed = false; waves = []; reset();
-      tiles.forEach(tile => { tile.scale = 1; tile.velocity = 0; });
+      tiles.forEach(tile => { tile.scale = 1; tile.velocity = 0; tile.shiftX = tile.shiftY = tile.driftX = tile.driftY = 0; });
       delete stage.dataset.navigating;
       panel.removeAttribute('aria-busy');
     };
@@ -143,6 +143,26 @@ export default function Terminal() {
         const distance = Math.hypot(sx - follower.x, sy - follower.y);
         const t = Math.max(0, 1 - distance / radius);
         const falloff = t * t * (3 - 2 * t);
+        // Evaluate from resting centers so repulsion never feeds back or jitters.
+        // The near field responds quickly; the fringe has a quiet, lingering drift.
+        const weight = pointer.active && !navigating ? falloff ** 1.5 : 0;
+        const travel = Math.min(22, 12 / p.depth) * weight;
+        const directionLength = Math.max(distance, 1);
+        const targetX = (sx - follower.x) / directionLength * travel;
+        const targetY = (sy - follower.y) / directionLength * travel;
+        if (reduced.matches) {
+          tile.shiftX = tile.shiftY = tile.driftX = tile.driftY = 0;
+        } else {
+          const omega = 5 + 19 * weight;
+          const decay = Math.exp(-omega * dt);
+          const offsetX = tile.shiftX - targetX, offsetY = tile.shiftY - targetY;
+          const tempX = (tile.driftX + omega * offsetX) * dt;
+          const tempY = (tile.driftY + omega * offsetY) * dt;
+          tile.shiftX = targetX + (offsetX + tempX) * decay;
+          tile.shiftY = targetY + (offsetY + tempY) * decay;
+          tile.driftX = (tile.driftX - omega * tempX) * decay;
+          tile.driftY = (tile.driftY - omega * tempY) * decay;
+        }
         // Each click has its own outward opening and outward recovery front.
         // Maximum influence composes waves without one click resetting another.
         let waveShrink = 0;
@@ -178,10 +198,13 @@ export default function Terminal() {
         // Preserve continuous spring-driven scaling through the entire size range.
         const scale = Math.max(0, Math.min(1, tile.scale));
         const half = (cell + .65) * Math.min(1, scale) / 2;
+        // Blend translation out as the mask closes, keeping resting tiles seamless.
+        const clearance = smooth((1 - scale) / .2);
+        const shiftX = tile.shiftX * clearance, shiftY = tile.shiftY * clearance;
         const shape = new Path2D();
         for (const [i, [dx, dy]] of [[-half,-half],[half,-half],[half,half],[-half,half]].entries()) {
           const corner = project(tile.x + dx, tile.y + dy);
-          if (i === 0) shape.moveTo(corner.x, corner.y); else shape.lineTo(corner.x, corner.y);
+          if (i === 0) shape.moveTo(corner.x + shiftX, corner.y + shiftY); else shape.lineTo(corner.x + shiftX, corner.y + shiftY);
         }
         shape.closePath();
         path.addPath(shape);
