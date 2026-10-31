@@ -22,6 +22,7 @@ export default function Terminal() {
     const ctx = canvas?.getContext('2d');
     const glass = glassRef.current;
     const glassCtx = glass?.getContext('2d');
+    let glassInitialized = false;
     if (!canvas || !ctx || !stage || !panel) return;
     let navigating = false, departed = false;
     let width = 0, height = 0, cell = 21, dpr = 1;
@@ -242,8 +243,12 @@ export default function Terminal() {
         const right = Math.min(width, bounds.right - source.left + margin);
         const bottom = Math.min(height, bounds.bottom - source.top + margin);
         if (right > left && bottom > top) {
+          // Frame-rate independent color persistence: soften both arrival and fade.
+          glassCtx.globalAlpha = !glassInitialized || reduced.matches ? 1 : -Math.expm1(-dt / .65);
           glassCtx.drawImage(canvas, left * dpr, top * dpr,
             (right - left) * dpr, (bottom - top) * dpr, 0, 0, glass.width, glass.height);
+          glassCtx.globalAlpha = 1;
+          glassInitialized = true;
         }
       }
     };
