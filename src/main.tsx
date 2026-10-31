@@ -3,23 +3,27 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { prepareDomain } from './domainMigration'
 
+const root = createRoot(document.getElementById('root')!);
+let routeVersion = 0;
 async function boot() {
+  const version = ++routeVersion;
   if (/^\/brain_in_vat\/?$/.test(location.pathname)) {
     const { default: BrainInVat } = await import('./BrainInVat');
+    if (version !== routeVersion) return;
     document.title = 'DUSTLAND / Brain in a Vat';
-    createRoot(document.getElementById('root')!).render(<StrictMode><BrainInVat /></StrictMode>);
+    root.render(<StrictMode><BrainInVat /></StrictMode>);
     return;
   }
   if (/^\/terminal\/?$/.test(location.pathname)) {
     const { default: Terminal } = await import('./Terminal');
     document.title = 'DUSTLAND / Ragon — personal terminal';
-    createRoot(document.getElementById('root')!).render(<StrictMode><Terminal /></StrictMode>);
+    root.render(<StrictMode><Terminal /></StrictMode>);
     return;
   }
   const result = await prepareDomain();
   if (result === 'handled') return;
   const { default: App } = await import('./App');
-  createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+  root.render(<StrictMode><App /></StrictMode>);
   if (result === 'warning') {
     const notice = document.createElement('button');
     notice.textContent = '旧域名数据未能自动迁移，原数据仍保留。请稍后刷新重试。点击关闭';
@@ -28,4 +32,5 @@ async function boot() {
     document.body.append(notice);
   }
 }
+window.addEventListener('popstate', () => { void boot(); });
 void boot();

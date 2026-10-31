@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import './Terminal.css';
+import { navigateTerminal } from './terminalNavigation';
 
 type Wave = { x: number; y: number; age: number; speed: number; duration: number; exit?: boolean };
 
@@ -216,7 +217,7 @@ export default function Terminal() {
       if (navigating && !departed && visible.length === 0) {
         departed = true;
         // Navigate only once the last tile has disappeared; never close the mask.
-        window.location.assign(panel.href);
+        navigateTerminal(panel.href);
       }
       // All tiles cast one coherent shadow, at 60 degrees in screen space.
       ctx.save();
