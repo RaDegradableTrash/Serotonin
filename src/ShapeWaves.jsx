@@ -226,7 +226,12 @@ fn hash21(p: vec2f) -> f32 {
   let tint = mix(imageTint, params.hover.rgb, max(smoothstep(0.15, 0.85, charge), front * 0.35));
 
   let imageCoverage = select(1.0, smoothstep(0.025, 0.2, imageLevel), params.motion.z > 1.5);
-  let rgb = mix(background, tint, coverage * level * imageCoverage);
+  // A faint, continuous shape field remains stable when the eye texture changes.
+  let ambientCoverage = smoothstep(aa, -aa, shapeDistance(local, shape, dotSize * 0.48));
+  let ambientTint = background + vec3f(0.018, 0.027, 0.032);
+  let ambient = mix(background, ambientTint, ambientCoverage * level);
+  let base = select(background, ambient, params.motion.z > 1.5);
+  let rgb = mix(base, tint, coverage * level * imageCoverage);
   if (toSurface) { return vec4f(rgb, 1.0); }
   let luminance = dot(tint * level, vec3f(0.2126, 0.7152, 0.0722));
   let glow = max(0.0, (luminance - GLOW_THRESHOLD) / (1.0 - GLOW_THRESHOLD)) * coverage * imageCoverage;

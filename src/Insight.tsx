@@ -28,7 +28,19 @@ function prepareEye(image: HTMLImageElement, registration: typeof eyes[number]) 
   c.drawImage(image,-registration.x,-registration.y);
   c.resetTransform();
   const pixels=c.getImageData(0,0,W,H);
-  // A soft almond-shaped focus field suppresses skin, brows and hair uniformly.
+  // Normalize exposure using only the registered iris neighborhood, never the skin.
+  let lightSum=0, weightSum=0;
+  for(let y=CY-140;y<CY+140;y++) for(let x=CX-140;x<CX+140;x++) {
+    const distance=Math.hypot(x-CX,y-CY);
+    const weight=ease((distance-38)/25)*(1-ease((distance-105)/35));
+    const i=(y*W+x)*4;
+    if(pixels.data[i+3]===0)continue;
+    lightSum+=(pixels.data[i]*.2126+pixels.data[i+1]*.7152+pixels.data[i+2]*.0722)/255*weight;
+    weightSum+=weight;
+  }
+  const exposure=Math.max(.75,Math.min(1.35,.42/Math.max(.01,lightSum/Math.max(1,weightSum))));
+  // Radial luminance weight is exactly 1 at the pupil and 0 outside its influence.
+  // The photo's contrasts converge on one common background, independent of exposure.
   // All source assets stay intact; cropping, registration and grading happen at runtime.
   for(let y=0;y<H;y++) for(let x=0;x<W;x++) {
     const i=(y*W+x)*4, dx=x-CX,dy=y-CY;
@@ -38,11 +50,12 @@ function prepareEye(image: HTMLImageElement, registration: typeof eyes[number]) 
     const sourceV=(-dx*Math.sin(angle)+dy*Math.cos(angle))/scale+registration.y;
     const edge=Math.min(sourceU,sourceV,image.width-sourceU,image.height-sourceV);
     const feather=ease(edge/(Math.min(image.width,image.height)*.16));
-    const focus=Math.exp(-Math.pow(u/325,4)-Math.pow(v/105,4))*feather*(pixels.data[i+3]/255);
+    const radialWeight=1-ease(Math.hypot(dx,dy)/235);
+    const focus=radialWeight*Math.exp(-Math.pow(u/325,4)-Math.pow(v/105,4))*feather*(pixels.data[i+3]/255);
     const lum=(pixels.data[i]*.2126+pixels.data[i+1]*.7152+pixels.data[i+2]*.0722)/255;
     const iris=1-ease((Math.hypot(dx,dy)-65)/80);
     const pupil=ease((Math.hypot(dx,dy)-31)/12);
-    const tone=Math.pow(Math.max(0,Math.min(1,(lum-.09)*(1.35+iris*.4))),.85)*(.18+.82*pupil);
+    const tone=Math.pow(Math.max(0,Math.min(1,(lum*exposure-.09)*(1.35+iris*.4))),.85)*(.18+.82*pupil);
     const fog=1-focus;
     pixels.data[i]=(7+tone*217)*focus+7*fog;
     pixels.data[i+1]=(20+tone*222)*focus+27*fog;
