@@ -50,8 +50,8 @@ function prepareEye(image: HTMLImageElement, registration: typeof eyes[number]) 
     const sourceV=(-dx*Math.sin(angle)+dy*Math.cos(angle))/scale+registration.y;
     const edge=Math.min(sourceU,sourceV,image.width-sourceU,image.height-sourceV);
     const feather=ease(edge/(Math.min(image.width,image.height)*.16));
-    const radialWeight=1-ease(Math.hypot(dx,dy)/235);
-    const focus=radialWeight*Math.exp(-Math.pow(u/325,4)-Math.pow(v/105,4))*feather*(pixels.data[i+3]/255);
+    const radialWeight=1-ease(Math.pow(Math.hypot(dx,dy)/360,1.5));
+    const focus=radialWeight*Math.exp(-Math.pow(u/370,4)-Math.pow(v/145,4))*feather*(pixels.data[i+3]/255);
     const lum=(pixels.data[i]*.2126+pixels.data[i+1]*.7152+pixels.data[i+2]*.0722)/255;
     const iris=1-ease((Math.hypot(dx,dy)-65)/80);
     const pupil=ease((Math.hypot(dx,dy)-31)/12);
