@@ -122,6 +122,7 @@ struct Params {
   color: vec4f,
   hover: vec4f,
   background: vec4f,
+  pointer: vec4f,
 }
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var maskTexture: texture_2d<f32>;
@@ -189,6 +190,11 @@ fn hash21(p: vec2f) -> f32 {
   var charge = 0.0;
   let index = i32(cell.y) * cols + i32(cell.x);
   if (index >= 0 && index < i32(arrayLength(&charges))) { charge = charges[index]; }
+  // Stationary hover is a persistent field, independent of the decaying waves.
+  let pointerDelta = center - params.pointer.xy;
+  let pointerSigma = max(1.0, params.pointer.z * 0.5);
+  let stationaryCharge = params.pointer.w * exp(-dot(pointerDelta, pointerDelta) / (2.0 * pointerSigma * pointerSigma));
+  charge = max(charge, stationaryCharge);
   let stepped = (band + i32(clamp(charge, 0.0, 0.999) * 3.0)) % 3;
 
   var shape = 2 - stepped;
@@ -423,6 +429,7 @@ export default function ShapeWaves({
     let visibilityObserver;
     let wakeRenderer = () => {};
     const pointer = { x: 0, y: 0, at: 0, inside: false };
+    let hoverLevel = 0;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const maskCanvas = document.createElement('canvas');
     const maskContext = maskCanvas.getContext('2d');
@@ -473,6 +480,10 @@ export default function ShapeWaves({
       pointer.inside = inside;
     };
 
+    const clearPointer = () => { pointer.inside = false; wakeRenderer(); };
+    const handlePointerOut = event => { if (!event.relatedTarget) clearPointer(); };
+    const handleVisibility = () => { if (document.hidden) pointer.inside = false; handleWake(); };
+
     const reportFailure = error => {
       if (disposed || failed) return;
       failed = true;
@@ -513,7 +524,8 @@ export default function ShapeWaves({
           motion: [0, 0, 0, 0.25],
           color: [0.573, 0.573, 0.573, 1],
           hover: [1, 1, 1, 0],
-          background: [0, 0, 0, 1]
+          background: [0, 0, 0, 1],
+          pointer: [0, 0, 1, 0]
         });
         const linearSampler = sampler(gpu, {
           minFilter: 'linear',
@@ -653,6 +665,11 @@ export default function ShapeWaves({
             drift = [drift[0] + Math.cos(angle) * distance, drift[1] + Math.sin(angle) * distance];
           }
           const hovering = visible && !document.hidden && updateCharges(deltaSeconds);
+          const hoverTarget = settings.interactive && pointer.inside && visible && !document.hidden ? settings.splashStrength : 0;
+          hoverLevel += (hoverTarget - hoverLevel) * (1 - Math.exp(-deltaSeconds / (hoverTarget > hoverLevel ? 0.12 : 0.22)));
+          if (Math.abs(hoverLevel - hoverTarget) < 0.001) hoverLevel = hoverTarget;
+          params.set({ pointer: [pointer.x * dpr, pointer.y * dpr, settings.splashRadius * dpr, hoverLevel] });
+          const hoverSettling = Math.abs(hoverLevel - hoverTarget) > 0.001;
           if (introArmed) {
             introArmed = false;
             introStart = now;
@@ -696,7 +713,7 @@ export default function ShapeWaves({
             presented = true;
             setReady(true);
           }
-          if (animating || hovering || introPlaying) frameId = requestAnimationFrame(render);
+          if (animating || hovering || introPlaying || hoverSettling) frameId = requestAnimationFrame(render);
           else lastFrameTime = 0;
         };
 
@@ -826,7 +843,9 @@ export default function ShapeWaves({
           { threshold: 0 }
         );
         visibilityObserver.observe(root);
-        document.addEventListener('visibilitychange', handleWake);
+        document.addEventListener('visibilitychange', handleVisibility);
+        window.addEventListener('pointerout', handlePointerOut);
+        window.addEventListener('blur', clearPointer);
         reduceMotion.addEventListener('change', handleWake);
         window.addEventListener('pointermove', handlePointerMove, { passive: true });
         window.addEventListener('scroll', invalidateBounds, { capture: true, passive: true });
@@ -844,7 +863,9 @@ export default function ShapeWaves({
       applySettingsRef.current = () => {};
       applyMaskRef.current = () => {};
       replayRef.current = () => {};
-      document.removeEventListener('visibilitychange', handleWake);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pointerout', handlePointerOut);
+      window.removeEventListener('blur', clearPointer);
       reduceMotion.removeEventListener('change', handleWake);
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('scroll', invalidateBounds, { capture: true });
