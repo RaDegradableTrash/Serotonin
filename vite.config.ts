@@ -9,7 +9,7 @@ export default defineConfig({
     name: 'productivity-path',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (/^\/(?:terminal|brain_in_vat)\/?(?:\?.*)?$/.test(req.url || '')) {
+        if (/^\/(?:(?:terminal|brain_in_vat|insight)\/?)?(?:\?.*)?$/.test(req.url || '')) {
           req.url = '/productivity/' + (req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
           return next();
         }
@@ -20,7 +20,7 @@ export default defineConfig({
     },
     configurePreviewServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (/^\/(?:terminal|brain_in_vat)\/?(?:\?.*)?$/.test(req.url || '')) {
+        if (/^\/(?:(?:terminal|brain_in_vat|insight)\/?)?(?:\?.*)?$/.test(req.url || '')) {
           req.url = '/productivity/' + (req.url?.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
           return next();
         }
@@ -32,7 +32,7 @@ export default defineConfig({
   }],
   preview: {
     port: Number(process.env.PORT || 4173),
-    allowedHosts: ['www.dustland.ai', 'productivity.dustland.ai', 'serotonin-scf6.onrender.com'],
+    allowedHosts: ['www.dustland.ai', 'dustland.ai', 'productivity.dustland.ai', 'serotonin-scf6.onrender.com'],
   },
   resolve: {
     alias: {

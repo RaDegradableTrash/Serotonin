@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#f7f8f5" />
     <meta name="description" content="Serotonin — 应用、日历、待办与音乐，一个更轻盈的个人效率空间。" />
     <script>
-      if (/^\/(terminal|brain_in_vat)\/?$/.test(location.pathname)) {
+      if (/^\/(?:(terminal|brain_in_vat|insight)\/?)?$/.test(location.pathname)) {
         document.documentElement.dataset.terminal = 'true';
       }
     </script>

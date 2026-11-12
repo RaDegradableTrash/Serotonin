@@ -7,6 +7,13 @@ const root = createRoot(document.getElementById('root')!);
 let routeVersion = 0;
 async function boot() {
   const version = ++routeVersion;
+  if (/^\/insight\/?$/.test(location.pathname)) {
+    const { default: Insight } = await import('./Insight');
+    if (version !== routeVersion) return;
+    document.title = 'DUSTLAND / Insight';
+    root.render(<StrictMode><Insight /></StrictMode>);
+    return;
+  }
   if (/^\/brain_in_vat\/?$/.test(location.pathname)) {
     const { default: BrainInVat } = await import('./BrainInVat');
     if (version !== routeVersion) return;
@@ -14,12 +21,14 @@ async function boot() {
     root.render(<StrictMode><BrainInVat /></StrictMode>);
     return;
   }
-  if (/^\/terminal\/?$/.test(location.pathname)) {
+  if (/^\/(?:terminal\/?)?$/.test(location.pathname)) {
     const revealTerminal = history.state?.revealTerminal === true;
+    const revealFrom = history.state?.revealFrom || '/brain_in_vat';
     if (revealTerminal) history.replaceState(null, '', location.href);
     const { default: Terminal } = await import('./Terminal');
+    if (version !== routeVersion) return;
     document.title = 'DUSTLAND / Ragon — personal terminal';
-    root.render(<StrictMode><Terminal reveal={revealTerminal} /></StrictMode>);
+    root.render(<StrictMode><Terminal reveal={revealTerminal} revealFrom={revealFrom} /></StrictMode>);
     return;
   }
   const result = await prepareDomain();

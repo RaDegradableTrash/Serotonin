@@ -11,19 +11,22 @@ const smooth = (value: number) => {
 
 type Tile = { x: number; y: number; scale: number; velocity: number; shiftX: number; shiftY: number; driftX: number; driftY: number; tone: string };
 
-export default function Terminal({ reveal = false }: { reveal?: boolean }) {
+export default function Terminal({ reveal = false, revealFrom = '/brain_in_vat' }: { reveal?: boolean; revealFrom?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const panelRef = useRef<HTMLAnchorElement>(null);
-  const glassRef = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
     const stage = canvas?.parentElement;
     const panel = panelRef.current;
     const ctx = canvas?.getContext('2d');
-    const glass = glassRef.current;
-    const glassCtx = glass?.getContext('2d');
-    let glassInitialized = false;
+
     if (!canvas || !ctx || !stage || !panel) return;
+    const panels = Array.from(stage.querySelectorAll<HTMLAnchorElement>('.glass-panel'));
+    const glasses = panels.map(link => {
+      const glass = link.querySelector('canvas')!;
+      return { link, glass, ctx: glass.getContext('2d'), initialized: false };
+    });
+    let activePanel = panel;
     let navigating = false, departed = false;
     let revealing = reveal, revealAge = 0;
     let width = 0, height = 0, cell = 21, dpr = 1;
@@ -91,24 +94,25 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
       if (navigating || revealing) return;
+      activePanel = event.currentTarget as HTMLAnchorElement;
       navigating = true;
       const rect = canvas.getBoundingClientRect();
-      const panelRect = panel.getBoundingClientRect();
+      const panelRect = activePanel.getBoundingClientRect();
       const x = event.detail === 0 ? panelRect.left + panelRect.width / 2 - rect.left : event.clientX - rect.left;
       const y = event.detail === 0 ? panelRect.top + panelRect.height / 2 - rect.top : event.clientY - rect.top;
       const reach = Math.hypot(Math.max(x, width - x), Math.max(y, height - y)) + cell * 2;
       waves.push({ x, y, age: 0, speed: reach / (reduced.matches ? .15 : 1.05), duration: Infinity, exit: true });
       stage.dataset.navigating = 'true';
-      panel.setAttribute('aria-busy', 'true');
+      activePanel.setAttribute('aria-busy', 'true');
     };
     const restore = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
       navigating = false; departed = false; waves = []; reset();
       tiles.forEach(tile => { tile.scale = 1; tile.velocity = 0; tile.shiftX = tile.shiftY = tile.driftX = tile.driftY = 0; });
       delete stage.dataset.navigating;
-      panel.removeAttribute('aria-busy');
+      panels.forEach(link => link.removeAttribute('aria-busy'));
     };
-    panel.addEventListener('click', navigate);
+    panels.forEach(link => link.addEventListener('click', navigate));
     window.addEventListener('pageshow', restore);
     stage.addEventListener('pointermove', locate);
     canvas.addEventListener('pointerdown', down);
@@ -144,6 +148,10 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
         }
       }
       const radius = Math.min(width, height) * .2625;
+      const returnPanel = panels.find(link => new URL(link.href).pathname === revealFrom) || panel;
+      const returnBounds = returnPanel.getBoundingClientRect();
+      const originX = returnBounds.left + returnBounds.width / 2;
+      const originY = returnBounds.top + returnBounds.height / 2;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = '#002FA7';
       ctx.fillRect(0, 0, width, height);
@@ -189,8 +197,8 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
           waveShrink = Math.max(waveShrink, opening * (1 - recovery));
         }
         const hoverShrink = pointer.active && !revealing ? .78 * falloff : 0;
-        const revealDistance = Math.hypot(sx - width / 2, sy - height / 2);
-        const revealSpeed = Math.hypot(width / 2, height / 2) / 1.05;
+        const revealDistance = Math.hypot(sx - originX, sy - originY);
+        const revealSpeed = Math.hypot(Math.max(originX,width-originX), Math.max(originY,height-originY)) / 1.05;
         const revealScale = revealing && !reduced.matches
           ? smooth((revealAge - revealDistance / revealSpeed) / .32) : 1;
         const target = Math.min(revealScale, Math.max(0, 1 - Math.max(hoverShrink, waveShrink)));
@@ -230,7 +238,7 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
       if (navigating && !departed && visible.length === 0) {
         departed = true;
         // Navigate only once the last tile has disappeared; never close the mask.
-        navigateTerminal(panel.href);
+        navigateTerminal(activePanel.href);
       }
       // All tiles cast one coherent shadow, at 60 degrees in screen space.
       ctx.save();
@@ -246,8 +254,10 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
       }
       // Sample the actual canvas into a tiny texture. This remains diffuse even
       // when a browser cannot composite backdrop-filter through a 3D transform.
-      if (glass && glassCtx) {
-        const bounds = panel.getBoundingClientRect();
+      for (const entry of glasses) {
+        const { glass, ctx: glassCtx, link } = entry;
+        if (!glassCtx) continue;
+        const bounds = link.getBoundingClientRect();
         const source = canvas.getBoundingClientRect();
         const margin = 70;
         const left = Math.max(0, bounds.left - source.left - margin);
@@ -256,11 +266,11 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
         const bottom = Math.min(height, bounds.bottom - source.top + margin);
         if (right > left && bottom > top) {
           // Frame-rate independent color persistence: soften both arrival and fade.
-          glassCtx.globalAlpha = !glassInitialized || reduced.matches ? 1 : -Math.expm1(-dt / .65);
+          glassCtx.globalAlpha = !entry.initialized || reduced.matches ? 1 : -Math.expm1(-dt / .65);
           glassCtx.drawImage(canvas, left * dpr, top * dpr,
             (right - left) * dpr, (bottom - top) * dpr, 0, 0, glass.width, glass.height);
           glassCtx.globalAlpha = 1;
-          glassInitialized = true;
+          entry.initialized = true;
         }
       }
     };
@@ -268,7 +278,7 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
     return () => {
       cancelAnimationFrame(frame); observer.disconnect();
       stage.removeEventListener('pointermove', locate);
-      panel.removeEventListener('click', navigate);
+      panels.forEach(link => link.removeEventListener('click', navigate));
       window.removeEventListener('pageshow', restore);
       canvas.removeEventListener('pointerdown', down);
       canvas.removeEventListener('pointerup', up);
@@ -276,13 +286,20 @@ export default function Terminal({ reveal = false }: { reveal?: boolean }) {
       canvas.removeEventListener('pointercancel', reset);
       window.removeEventListener('blur', reset);
     };
-  }, [reveal]);
+  }, [reveal, revealFrom]);
   return <main className="tile-stage" data-revealing={reveal || undefined}><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" />
     <a ref={panelRef} className="glass-panel" href="/brain_in_vat">
-      <canvas ref={glassRef} className="glass-panel__diffusion" width={6} height={12} aria-hidden="true" />
+      <canvas className="glass-panel__diffusion" width={6} height={12} aria-hidden="true" />
       <span className="glass-panel__eyebrow">EXPLORE <span aria-hidden="true">↗</span></span>
       <span className="glass-panel__title">缸中之脑</span>
       <span className="glass-panel__description">BRAIN IN A VAT</span>
+      <span className="glass-panel__action">进入 <span aria-hidden="true">→</span></span>
+    </a>
+    <a className="glass-panel glass-panel--insight" href="/insight">
+      <canvas className="glass-panel__diffusion" width={6} height={12} aria-hidden="true" />
+      <span className="glass-panel__eyebrow">OBSERVE <span aria-hidden="true">↗</span></span>
+      <span className="glass-panel__title">洞见</span>
+      <span className="glass-panel__description">INSIGHT</span>
       <span className="glass-panel__action">进入 <span aria-hidden="true">→</span></span>
     </a>
   </main>;
