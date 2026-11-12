@@ -3,6 +3,13 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import { prepareDomain } from './domainMigration'
 
+// Keep the immersive pages' pointer interactions free of the browser menu.
+document.addEventListener('contextmenu', event => {
+  if (/^\/(?:(?:terminal|insight|brain_in_vat)\/?)?$/.test(location.pathname)) {
+    event.preventDefault();
+  }
+});
+
 const root = createRoot(document.getElementById('root')!);
 let routeVersion = 0;
 async function boot() {
