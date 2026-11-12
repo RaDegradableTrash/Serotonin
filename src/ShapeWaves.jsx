@@ -192,8 +192,7 @@ fn hash21(p: vec2f) -> f32 {
   if (index >= 0 && index < i32(arrayLength(&charges))) { charge = charges[index]; }
   // Stationary hover is a persistent field, independent of the decaying waves.
   let pointerDelta = center - params.pointer.xy;
-  // Match the broader footprint of the moving ripple after the pointer settles.
-  let pointerSigma = max(1.0, params.pointer.z);
+  let pointerSigma = max(1.0, params.pointer.z * 0.5);
   let stationaryCharge = params.pointer.w * exp(-dot(pointerDelta, pointerDelta) / (2.0 * pointerSigma * pointerSigma));
   charge = max(charge, stationaryCharge);
   let stepped = (band + i32(clamp(charge, 0.0, 0.999) * 3.0)) % 3;
