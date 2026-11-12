@@ -21,7 +21,7 @@ const ease=(v:number)=>{const t=Math.max(0,Math.min(1,v));return t*t*(3-2*t);};
 function prepareEye(image: HTMLImageElement, registration: typeof eyes[number]) {
   const raw=document.createElement('canvas'); raw.width=W; raw.height=H;
   const c=raw.getContext('2d', {willReadFrequently:true})!;
-  c.fillStyle='#a3bdc5';c.fillRect(0,0,W,H);
+  c.clearRect(0,0,W,H);
   c.translate(CX,CY); c.rotate(registration.angle*Math.PI/180);
   const scale=38/registration.r;
   c.scale(registration.flip ? -scale:scale,scale);
@@ -33,19 +33,26 @@ function prepareEye(image: HTMLImageElement, registration: typeof eyes[number]) 
   for(let y=0;y<H;y++) for(let x=0;x<W;x++) {
     const i=(y*W+x)*4, dx=x-CX,dy=y-CY;
     const u=dx*.990+dy*.139, v=-dx*.139+dy*.990;
-    const focus=Math.exp(-Math.pow(u/350,6)-Math.pow(v/115,4));
+    const angle=registration.angle*Math.PI/180;
+    const sourceU=(dx*Math.cos(angle)+dy*Math.sin(angle))/scale*(registration.flip?-1:1)+registration.x;
+    const sourceV=(-dx*Math.sin(angle)+dy*Math.cos(angle))/scale+registration.y;
+    const edge=Math.min(sourceU,sourceV,image.width-sourceU,image.height-sourceV);
+    const feather=ease(edge/(Math.min(image.width,image.height)*.16));
+    const focus=Math.exp(-Math.pow(u/325,4)-Math.pow(v/105,4))*feather*(pixels.data[i+3]/255);
     const lum=(pixels.data[i]*.2126+pixels.data[i+1]*.7152+pixels.data[i+2]*.0722)/255;
-    const tone=Math.max(0,Math.min(1,(lum-.12)*1.19));
+    const iris=1-ease((Math.hypot(dx,dy)-65)/80);
+    const pupil=ease((Math.hypot(dx,dy)-31)/12);
+    const tone=Math.pow(Math.max(0,Math.min(1,(lum-.09)*(1.35+iris*.4))),.85)*(.18+.82*pupil);
     const fog=1-focus;
-    pixels.data[i]=(17+tone*180)*focus+158*fog;
-    pixels.data[i+1]=(36+tone*191)*focus+188*fog;
-    pixels.data[i+2]=(42+tone*198)*focus+199*fog;
+    pixels.data[i]=(7+tone*217)*focus+7*fog;
+    pixels.data[i+1]=(20+tone*222)*focus+27*fog;
+    pixels.data[i+2]=(27+tone*225)*focus+37*fog;
+    pixels.data[i+3]=255;
   }
   c.putImageData(pixels,0,0); return raw;
 }
 export default function Insight(){
   const canvasRef=useRef<HTMLCanvasElement>(null);
-  const countRef=useRef<HTMLSpanElement>(null);
   const pausedRef=useRef(false);
   const [paused,setPaused]=useState(()=>matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [failed,setFailed]=useState(false);
@@ -63,7 +70,7 @@ export default function Insight(){
     const resize=()=>{
       const box=canvas.getBoundingClientRect();width=box.width;height=box.height;
       dpr=Math.min(devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;
-      artWidth=Math.min(width*1.06,height*1.85);left=(width-artWidth)/2;top=(height-artWidth*H/W)/2;
+      artWidth=Math.min(width*1.06,height*1.85)*1.5;left=(width-artWidth)/2;top=(height-artWidth*H/W)/2;
     };
     const observer=new ResizeObserver(resize);observer.observe(canvas);resize();
     const render=(now:number)=>{
@@ -72,9 +79,8 @@ export default function Insight(){
       if(now-last<1000/30)return;
       const dt=Math.min((now-(last||now))/1000,.08);last=now;
       if(!pausedRef.current)clock+=dt;
-      if(frames.length>1&&!pausedRef.current&&clock-switchTime>.4){oldIndex=index;index=(index+1)%frames.length;switchTime=clock;}
-      if(countRef.current) countRef.current.textContent=String(index+1).padStart(2,'0')+' / '+String(frames.length||9).padStart(2,'0');
-      ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#9ebcc7';ctx.fillRect(0,0,width,height);
+      if(frames.length>1&&!pausedRef.current&&clock-switchTime>.2){oldIndex=index;index=(index+1)%frames.length;switchTime=clock;}
+      ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#071b25';ctx.fillRect(0,0,width,height);
       const intro=reduced.matches?1:ease(clock/1.2);
       if(frames.length){
         ctx.globalAlpha=intro;
@@ -99,17 +105,17 @@ export default function Insight(){
   return <main className="insight-page" data-leaving={leaving}>
     <canvas ref={canvasRef} className="insight-scene" aria-label="瞳孔对齐的冷蓝色眼睛影像，快速切换并带有几何波纹滤镜"/>
     <ShapeWaves imageSourceRef={canvasRef} className="insight-shapewave"
-      shapes="mixed" cellSize={6} dotSize={.92} color="#d6eff6" hoverColor="#ffffff"
+      shapes="mixed" cellSize={12} dotSize={.92} color="#d6eff6" hoverColor="#ffffff"
       backgroundColor="#071b25" speed={.8} scale={.75} contrast={1.1}
-      brightness={.5} fade={.12} glow={.24} splashRadius={90} splashStrength={.65}
+      brightness={.5} fade={.12} glow={.14} splashRadius={90} splashStrength={.65}
       introDuration={1.2} paused={paused} onError={error=>{console.error("ShapeWave:",error);setGpuFailed(true);}} />
     {gpuFailed&&<p className="insight-gpu-error" role="status">当前浏览器未能启用 ShapeWave（WebGPU），正在显示原始影像。</p>}
-    <header className="insight-header"><a href="/terminal" onClick={event=>{
+    <header className="insight-header"><a href="/terminal" aria-label="返回主页" onClick={event=>{
       if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
       event.preventDefault();if(timer.current)return;setLeaving(true);
       timer.current=setTimeout(()=>navigateTerminal('/terminal',true,'/insight'),360);
-    }}>← 返回</a><span>INSIGHT</span><span ref={countRef}>01 / 09</span></header>
-    <footer className="insight-footer"><span>THE OBSERVER</span><button type="button" aria-pressed={paused} onClick={()=>setPaused(!paused)}>{paused?'播放 ↗':'暂停 Ⅱ'}</button></footer>
+    }}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M19 12H5m6-6-6 6 6 6" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg></a></header>
+    <footer className="insight-footer"><button type="button" aria-label={paused?'播放':'暂停'} aria-pressed={paused} onClick={()=>setPaused(!paused)}><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">{paused?<path d="m8 5 11 7-11 7z" fill="currentColor"/>:<path d="M8 5v14M16 5v14" stroke="currentColor" strokeWidth="2"/>}</svg></button></footer>
     {failed&&<p className="insight-error">影像暂时无法加载，请刷新重试。</p>}
   </main>;
 }
