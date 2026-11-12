@@ -79,6 +79,14 @@ export default function Insight(){
     let disposed=false,frame=0,last=0,clock=0,switchTime=0,index=0,oldIndex=0;
     let width=1,height=1,dpr=1, artWidth=1,left=0,top=0;
     let frames: HTMLCanvasElement[]=[];
+    const blend=document.createElement('canvas'),history=document.createElement('canvas'),center=document.createElement('canvas');
+    for(const layer of [blend,history,center]){layer.width=W;layer.height=H;}
+    const blendCtx=blend.getContext('2d')!,historyCtx=history.getContext('2d')!,centerCtx=center.getContext('2d')!;
+    let historyReady=false;
+    const centerMask=centerCtx.createRadialGradient(CX,CY,85,CX,CY,320);
+    centerMask.addColorStop(0,'rgba(0,0,0,1)');
+    centerMask.addColorStop(.45,'rgba(0,0,0,.7)');
+    centerMask.addColorStop(1,'rgba(0,0,0,0)');
     const reduced=matchMedia('(prefers-reduced-motion: reduce)');
     const resize=()=>{
       const box=canvas.getBoundingClientRect();width=box.width;height=box.height;
@@ -92,15 +100,23 @@ export default function Insight(){
       if(now-last<1000/30)return;
       const dt=Math.min((now-(last||now))/1000,.08);last=now;
       if(!pausedRef.current)clock+=dt;
-      if(frames.length>1&&!pausedRef.current&&clock-switchTime>.2){oldIndex=index;index=(index+1)%frames.length;switchTime=clock;}
+      while(frames.length>1&&!pausedRef.current&&clock-switchTime>=.2){oldIndex=index;index=(index+1)%frames.length;switchTime+=.2;}
       ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#071b25';ctx.fillRect(0,0,width,height);
       const intro=reduced.matches?1:ease(clock/1.2);
       if(frames.length){
-        ctx.globalAlpha=intro;
-        ctx.drawImage(frames[oldIndex],left,top,artWidth,artWidth*H/W);
-        ctx.globalAlpha=intro*ease((clock-switchTime)/.065);
-        if(pausedRef.current)ctx.globalAlpha=1;
-        ctx.drawImage(frames[index],left,top,artWidth,artWidth*H/W);ctx.globalAlpha=1;
+        // The 200 ms cadence stays fixed; the aligned frames blend for 170 ms.
+        blendCtx.globalAlpha=1;blendCtx.drawImage(frames[oldIndex],0,0);
+        blendCtx.globalAlpha=reduced.matches?1:ease((clock-switchTime)/.17);
+        blendCtx.drawImage(frames[index],0,0);blendCtx.globalAlpha=1;
+        // The outer image has longer luminance memory, independent of the center.
+        historyCtx.globalAlpha=!historyReady||reduced.matches?1:-Math.expm1(-dt/.32);
+        historyCtx.drawImage(blend,0,0);historyCtx.globalAlpha=1;historyReady=true;
+        centerCtx.clearRect(0,0,W,H);centerCtx.drawImage(blend,0,0);
+        centerCtx.globalCompositeOperation='destination-in';
+        centerCtx.fillStyle=centerMask;centerCtx.fillRect(0,0,W,H);
+        centerCtx.globalCompositeOperation='source-over';
+        ctx.globalAlpha=intro;ctx.drawImage(history,left,top,artWidth,artWidth*H/W);
+        ctx.drawImage(center,left,top,artWidth,artWidth*H/W);ctx.globalAlpha=1;
       }
       ctx.globalAlpha=1;
     };
