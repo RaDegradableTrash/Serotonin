@@ -1,5 +1,5 @@
-body:has(.insight-page){margin:0;min-width:0;overflow:hidden;background:#002fa7}
-.insight-page{position:relative;width:100%;height:100svh;min-height:320px;background:#002fa7;isolation:isolate;color:#183c4b}
+body:has(.insight-page){margin:0;min-width:0;overflow:hidden;background:#071b25}
+.insight-page{position:relative;width:100%;height:100svh;min-height:320px;background:#071b25;isolation:isolate;color:#183c4b}
 .insight-scene{display:block;width:100%;height:100%;background:#071b25;animation:insight-arrive .7s ease both}
 .insight-header,.insight-footer{position:absolute;left:32px;right:32px;display:flex;align-items:center;justify-content:space-between;font:11px/1.4 ui-monospace,Consolas,monospace;letter-spacing:.16em;z-index:2}
 .insight-header{top:28px}.insight-footer{bottom:28px}

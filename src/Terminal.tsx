@@ -153,7 +153,7 @@ export default function Terminal({ reveal = false, revealFrom = '/brain_in_vat' 
       const originX = returnBounds.left + returnBounds.width / 2;
       const originY = returnBounds.top + returnBounds.height / 2;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#002FA7';
+      ctx.fillStyle = '#071b25';
       ctx.fillRect(0, 0, width, height);
       const visible: { tile: Tile; shape: Path2D }[] = [];
       const path = new Path2D();
@@ -287,7 +287,7 @@ export default function Terminal({ reveal = false, revealFrom = '/brain_in_vat' 
       window.removeEventListener('blur', reset);
     };
   }, [reveal, revealFrom]);
-  return <main className="tile-stage" data-revealing={reveal || undefined}><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开蓝色底板，按下进一步收缩" />
+  return <main className="tile-stage" data-revealing={reveal || undefined}><canvas ref={canvasRef} className="tile-field" aria-label="倾斜的白色方格蒙版：移动鼠标展开深灰色底板，按下进一步收缩" />
     <a ref={panelRef} className="glass-panel" href="/brain_in_vat">
       <canvas className="glass-panel__diffusion" width={6} height={12} aria-hidden="true" />
       <span className="glass-panel__eyebrow">EXPLORE <span aria-hidden="true">↗</span></span>
