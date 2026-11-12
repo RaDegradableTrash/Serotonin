@@ -10,3 +10,8 @@ body:has(.insight-page){margin:0;min-width:0;overflow:hidden;background:#002fa7}
 @keyframes insight-arrive{from{opacity:0}to{opacity:1}}
 @media(max-width:600px){.insight-header,.insight-footer{left:16px;right:16px}.insight-header{top:18px}.insight-footer{bottom:18px}}
 @media(prefers-reduced-motion:reduce){.insight-scene{animation:none}.insight-page > *{transition:none}}
+
+.insight-shapewave.shape-waves{position:absolute;inset:0;width:100%;height:100%;background:transparent!important;pointer-events:none}
+.insight-page:has(.shape-waves[data-ready=true]){color:#d8edf4}
+.insight-page:has(.shape-waves[data-ready=true]) .insight-header a,.insight-page:has(.shape-waves[data-ready=true]) .insight-footer button{border-color:#c3e8f038;background:#0c27394d}
+.insight-gpu-error{position:absolute;bottom:75px;left:24px;right:24px;text-align:center;font-size:12px}

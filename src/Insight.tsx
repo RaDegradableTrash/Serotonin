@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { navigateTerminal } from './terminalNavigation';
 import './Insight.css';
+import ShapeWaves from './ShapeWaves';
 
 // Hand-registered source landmarks: pupil center/radius, mirror, then eye-line tilt.
 // Normalize the pupil itself, rather than the larger iris or the image dimensions.
@@ -48,6 +49,7 @@ export default function Insight(){
   const pausedRef=useRef(false);
   const [paused,setPaused]=useState(()=>matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [failed,setFailed]=useState(false);
+  const [gpuFailed,setGpuFailed]=useState(false);
   const [leaving,setLeaving]=useState(false);
   const timer=useRef<ReturnType<typeof setTimeout>|null>(null);
   useEffect(()=>{pausedRef.current=paused;},[paused]);
@@ -58,18 +60,12 @@ export default function Insight(){
     let width=1,height=1,dpr=1, artWidth=1,left=0,top=0;
     let frames: HTMLCanvasElement[]=[];
     const reduced=matchMedia('(prefers-reduced-motion: reduce)');
-    const pointer={x:-1000,y:-1000};
-    let ripples:{x:number;y:number;age:number}[]=[];
     const resize=()=>{
       const box=canvas.getBoundingClientRect();width=box.width;height=box.height;
       dpr=Math.min(devicePixelRatio||1,2);canvas.width=width*dpr;canvas.height=height*dpr;
       artWidth=Math.min(width*1.06,height*1.85);left=(width-artWidth)/2;top=(height-artWidth*H/W)/2;
     };
     const observer=new ResizeObserver(resize);observer.observe(canvas);resize();
-    const move=(event:PointerEvent)=>{const r=canvas.getBoundingClientRect();pointer.x=event.clientX-r.left;pointer.y=event.clientY-r.top;};
-    const leave=()=>{pointer.x=pointer.y=-1000;};
-    const down=(event:PointerEvent)=>{if(event.button!==0)return;move(event);ripples.push({x:pointer.x,y:pointer.y,age:0});};
-    canvas.addEventListener('pointermove',move);canvas.addEventListener('pointerleave',leave);canvas.addEventListener('pointerdown',down);
     const render=(now:number)=>{
       frame=requestAnimationFrame(render);
       if(document.hidden){last=now;return;}
@@ -87,26 +83,6 @@ export default function Insight(){
         if(pausedRef.current)ctx.globalAlpha=1;
         ctx.drawImage(frames[index],left,top,artWidth,artWidth*H/W);ctx.globalAlpha=1;
       }
-      // ShapeWave adaptation: mixed geometric cells, flowing field, radial intro,
-      // pointer charge, outward waves and a faint luminous crest.
-      ripples=ripples.map(r=>({...r,age:r.age+dt})).filter(r=>r.age<1.8);
-      const cell=Math.max(6,width/210),fieldTime=reduced.matches?0:clock*.1;
-      for(let y=cell/2;y<height;y+=cell)for(let x=cell/2;x<width;x+=cell){
-        const nx=(x-width/2)/(artWidth*.5),ny=(y-height/2)/(artWidth*.32);
-        const fade=Math.exp(-(nx*nx+ny*ny)*1.4);
-        let charge=reduced.matches?0:Math.exp(-Math.pow(Math.hypot(x-pointer.x,y-pointer.y)/85,2))*.65;
-        for(const r of ripples)charge=Math.max(charge,Math.exp(-Math.pow((Math.hypot(x-r.x,y-r.y)-r.age*380)/34,2))*(1-r.age/1.8));
-        const noise=Math.sin(x/94+Math.sin(y/107+fieldTime))*Math.cos(y/83-fieldTime);
-        const kind=Math.min(2,Math.floor((noise*.5+.5)*3));
-        const radius=cell*(.10+.13*(noise*.5+.5)+charge*.12);
-        const front=ease((intro*1.7-Math.hypot(nx,ny)*.65)/.25);
-        ctx.globalAlpha=(.045+charge*.19)*fade*front;ctx.fillStyle=charge>.3?'#eefcff':'#153b4b';
-        ctx.beginPath();
-        if(kind===0)ctx.rect(x-radius,y-radius,radius*2,radius*2);
-        else if(kind===1)ctx.arc(x,y,radius,0,Math.PI*2);
-        else{ctx.moveTo(x,y-radius);ctx.lineTo(x+radius,y+radius);ctx.lineTo(x-radius,y+radius);ctx.closePath();}
-        ctx.fill();
-      }
       ctx.globalAlpha=1;
     };
     void Promise.allSettled(eyes.map((eye,i)=>new Promise<HTMLCanvasElement>((resolve,reject)=>{
@@ -118,10 +94,16 @@ export default function Insight(){
       if(!frames.length)setFailed(true);
       frame=requestAnimationFrame(render);
     });
-    return()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();canvas.removeEventListener('pointermove',move);canvas.removeEventListener('pointerleave',leave);canvas.removeEventListener('pointerdown',down);if(timer.current)clearTimeout(timer.current);};
+    return()=>{disposed=true;cancelAnimationFrame(frame);observer.disconnect();if(timer.current)clearTimeout(timer.current);};
   },[]);
   return <main className="insight-page" data-leaving={leaving}>
     <canvas ref={canvasRef} className="insight-scene" aria-label="瞳孔对齐的冷蓝色眼睛影像，快速切换并带有几何波纹滤镜"/>
+    <ShapeWaves imageSourceRef={canvasRef} className="insight-shapewave"
+      shapes="mixed" cellSize={6} dotSize={.92} color="#d6eff6" hoverColor="#ffffff"
+      backgroundColor="#071b25" speed={.8} scale={.75} contrast={1.1}
+      brightness={.5} fade={.12} glow={.24} splashRadius={90} splashStrength={.65}
+      introDuration={1.2} paused={paused} onError={error=>{console.error("ShapeWave:",error);setGpuFailed(true);}} />
+    {gpuFailed&&<p className="insight-gpu-error" role="status">当前浏览器未能启用 ShapeWave（WebGPU），正在显示原始影像。</p>}
     <header className="insight-header"><a href="/terminal" onClick={event=>{
       if(event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
       event.preventDefault();if(timer.current)return;setLeaving(true);
