@@ -65,7 +65,7 @@ function Tape({ id, exploded, capture }: { id: string; exploded: boolean; captur
 function TapeView({ id, expanded = false, exploded = false, capture, onError }: { id: string; expanded?: boolean; exploded?: boolean; capture?: (image: string) => void; onError?: () => void }) {
   return <Canvas frameloop={expanded || capture ? 'always' : 'demand'} camera={{ position: [0, 1.5, 15], fov: expanded ? 37 : 34 }} dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
     <ambientLight intensity={0.7} />
-    {!expanded && <OrthographicCamera makeDefault manual position={[0, 0, 20]} left={-3.352239} right={3.352239} top={4.790255} bottom={-4.790255} near={0.1} far={100} />}
+    {!expanded && <OrthographicCamera makeDefault manual position={[0, 0, 20]} left={-4.790255} right={4.790255} top={3.352239} bottom={-3.352239} near={0.1} far={100} />}
     <FitCamera exploded={exploded} expanded={expanded} />
     <directionalLight position={[3, 6, 8]} intensity={3} />
     <directionalLight position={[-5, -2, 4]} intensity={1.2} color="#abc3d2" />
@@ -74,7 +74,7 @@ function TapeView({ id, expanded = false, exploded = false, capture, onError }: 
       <Lightformer position={[-5, 0, 3]} rotation={[0, Math.PI / 3, 0]} scale={[2, 8, 1]} intensity={2} />
       <Lightformer position={[4, 2, 5]} rotation={[0, -Math.PI / 4, 0]} scale={[0.6, 8, 1]} intensity={5} />
     </Environment>
-    <ModelBoundary onError={onError}><Suspense fallback={<Html center><span className="model-message">载入中</span></Html>}><group rotation={expanded ? [0.25, -0.32, 0] : [0, 0, Math.PI / 2]}><Tape id={id} exploded={exploded} capture={capture} /></group></Suspense></ModelBoundary>
+    <ModelBoundary onError={onError}><Suspense fallback={<Html center><span className="model-message">载入中</span></Html>}><group rotation={expanded ? [0.25, -0.32, 0] : [0, 0, 0]}><Tape id={id} exploded={exploded} capture={capture} /></group></Suspense></ModelBoundary>
     {expanded && <OrbitControls target={exploded ? [0, 2, 0] : [0, 0, 0]} enablePan={false} minDistance={10} maxDistance={40} />}
   </Canvas>;
 }
@@ -153,7 +153,7 @@ export default function Portfolio() {
       speed = from + (destination - from) * smooth(Math.min(1, (time - changedAt) / 800));
       phase += speed * 34 * dt;
       element.dataset.speed = speed.toFixed(3);
-      const cardWidth = Math.max(140, Math.min(260, width * .19));
+      const cardWidth = Math.max(200, Math.min(350, width * .26));
       const spacing = cardWidth * .53;
       const length = spacing * queueItems.length;
       const slope = Math.min(.65, Math.max(.43, height / width * .78));
@@ -229,3 +229,4 @@ export default function Portfolio() {
     </section>}
   </main>;
 }
+
