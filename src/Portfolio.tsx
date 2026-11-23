@@ -4,6 +4,7 @@ import { Environment, Html, Lightformer, OrbitControls, OrthographicCamera, useG
 import * as THREE from 'three';
 import { navigateTerminal } from './terminalNavigation';
 import './Portfolio.css';
+import CassetteRing from './CassetteRing';
 
 
 const tapes = [
@@ -21,7 +22,7 @@ class ModelBoundary extends Component<{ children: ReactNode; onError?: () => voi
   render() { return this.state.failed ? <Html center><span className="model-message">模型加载失败，请刷新重试</span></Html> : this.props.children; }
 }
 
-function Tape({ id, exploded, capture }: { id: string; exploded: boolean; capture?: (image: string) => void }) {
+export function Tape({ id, exploded, capture }: { id: string; exploded: boolean; capture?: (image: string) => void }) {
   const { scene } = useGLTF(`${import.meta.env.BASE_URL}models/portfolio/${id}.glb?v=user-blue-1`);
   const root = useRef<THREE.Group>(null);
   const [copy] = useState(() => {
@@ -105,42 +106,25 @@ function CaptureFrame({ onReady }: { onReady: (image: string) => void }) {
 }
 
 
-// The same circular shelf used by productivity/MenuCards: x = -R + R cos(phi),
-// z = -R sin(phi). Selection pulls a physical object out along the local x axis.
-function ShelfTape({ slot, active, onSelect, onOpen }: { slot: number; active: number; onSelect: (slot: number) => void; onOpen: () => void }) {
-  const group = useRef<THREE.Group>(null);
-  const phi = (slot - 7) * .12;
-  const x = -8.5 + 8.5 * Math.cos(phi);
-  const z = -8.5 * Math.sin(phi);
-  useFrame((_, delta) => {
-    if (!group.current) return;
-    group.current.position.x = THREE.MathUtils.damp(group.current.position.x, x + (active === slot ? 3.1 : 0), 7, delta);
-    group.current.rotation.y = THREE.MathUtils.damp(group.current.rotation.y, phi + (active === slot ? .35 : 0), 7, delta);
-  });
-  return <group ref={group} position={[x,0,z]} rotation={[0,phi,0]} scale={.24}
-    onPointerOver={event=>{event.stopPropagation();onSelect(slot);}}
-    onClick={event=>{event.stopPropagation(); if(active===slot) onOpen(); else onSelect(slot);}}>
-    <Tape id={tapes[slot % 5].id} exploded={false}/>
-  </group>;
-}
 function ShelfCamera() {
   const {camera,size}=useThree();
   useEffect(()=>{
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
     const aspect=size.width/size.height;
-    camera.fov=2*Math.atan(Math.tan(Math.PI/10)*Math.max(1,1.35/aspect))*180/Math.PI;
-    camera.position.set(.8,3.2,10.8);camera.lookAt(-1,-.3,0);camera.updateProjectionMatrix();
+    camera.fov=2*Math.atan(Math.tan(Math.PI/10)*Math.max(1,(aspect<.8?.9:1.35)/aspect))*180/Math.PI;
+    camera.position.set(.8,2.4,9.8);camera.lookAt(aspect<.8?-1.8:1,-.3,0);camera.updateProjectionMatrix();
   },[camera,size]);
   return null;
 }
 export default function Portfolio() {
-  const [active,setActive]=useState(7);
+  const [active,setActive]=useState(0);
   const [selected,setSelected]=useState<number|null>(null);
   const [exploded,setExploded]=useState(false);
   const closeRef=useRef<HTMLButtonElement>(null);
   const openRef=useRef<HTMLButtonElement>(null);
   const detailRef=useRef<HTMLElement>(null);
   const opened=useRef(false);
+  const caption=useRef<HTMLDivElement>(null);
   useEffect(()=>{
     if(selected===null){if(opened.current)openRef.current?.focus();return;}
     opened.current=true;closeRef.current?.focus();
@@ -154,6 +138,16 @@ export default function Portfolio() {
       }
     };window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
   },[selected]);
+  useEffect(()=>{
+    const key=(event:KeyboardEvent)=>{
+      if(selected!==null||event.ctrlKey||event.metaKey||event.altKey||event.isComposing)return;
+      const target=event.target as HTMLElement;
+      if(target.closest('input,textarea,select,[contenteditable="true"]'))return;
+      const index=event.key==='`'||event.key==='~'?0:/^[1-4]$/.test(event.key)?Number(event.key):-1;
+      if(index>=0){event.preventDefault();setActive(index);}
+    };
+    window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
+  },[selected]);
   const open=()=>{setExploded(false);setSelected(active%5);};
   return <main className="portfolio-page">
     <header className="portfolio-header" inert={selected!==null}>
@@ -161,20 +155,20 @@ export default function Portfolio() {
       <nav aria-label="作品集导航"><span aria-current="page">Collection</span><a href="/insight">Insight</a><a href="/terminal">Terminal</a></nav>
     </header>
     <section className="cassette-shelf" aria-label="环形磁带收藏" inert={selected!==null}>
-      <Canvas dpr={[1,1.5]} camera={{position:[.8,3.2,10.8],fov:36}} gl={{alpha:true,antialias:true}}>
+      <Canvas dpr={[1,1.5]} camera={{position:[.8,2.4,9.8],fov:36}} gl={{alpha:true,antialias:true}}>
         <ShelfCamera/><ambientLight intensity={.8}/><directionalLight position={[3,6,8]} intensity={3}/><directionalLight position={[-5,2,4]} intensity={1.5} color="#abc3d2"/>
         <Environment resolution={128}><Lightformer position={[0,5,5]} scale={[10,2,1]} intensity={3}/><Lightformer position={[-5,0,3]} rotation={[0,Math.PI/3,0]} scale={[2,8,1]} intensity={2}/></Environment>
         <ModelBoundary><Suspense fallback={<Html center><span className="model-message">载入磁带</span></Html>}>
-          <group position={[-3.2,-.3,0]} rotation={[0,.42,-.03]}>
-            {Array.from({length:15},(_,slot)=><ShelfTape key={slot} slot={slot} active={active} onSelect={setActive} onOpen={open}/>)}
+          <group position={[-3.65,-.75,0]} rotation={[0,.42,-.03]}>
+            <CassetteRing mode={active} onSelect={setActive} onProgress={progress=>{if(caption.current)caption.current.style.opacity=String(progress);}}/>
           </group>
         </Suspense></ModelBoundary>
       </Canvas>
     </section>
     <div className="shelf-controls" inert={selected!==null}>
-      <div className="shelf-index" aria-label="选择磁带">{tapes.map((tape,index)=><button key={tape.id} aria-label={tape.name} aria-pressed={active%5===index} onClick={()=>setActive(5+index)}>{String(index+1).padStart(2,'0')}</button>)}</div>
-      <button ref={openRef} className="shelf-open" onClick={open}>{tapes[active%5].name}<span>↗</span></button>
-      <small>{tapes[active%5].subtitle}</small>
+      <div className="shelf-index" aria-label="选择磁带">{tapes.map((tape,index)=><button key={tape.id} aria-label={tape.name} aria-pressed={active%5===index} onClick={()=>setActive(index)}>{index===0?'~':index}</button>)}</div>
+      <div ref={caption} className="shelf-caption"><button ref={openRef} className="shelf-open" onClick={open}>{tapes[active%5].name}<span>↗</span></button>
+      <small>{tapes[active%5].subtitle}</small></div>
     </div>
     {selected!==null&&<section ref={detailRef} className="tape-detail" role="dialog" aria-modal="true" aria-label={tapes[selected].name}>
       <button ref={closeRef} className="tape-close" onClick={()=>setSelected(null)}>关闭 ×</button>
