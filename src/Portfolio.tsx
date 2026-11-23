@@ -154,7 +154,7 @@ export default function Portfolio() {
       phase += speed * 34 * dt;
       element.dataset.speed = speed.toFixed(3);
       const cardWidth = Math.max(200, Math.min(350, width * .26));
-      const spacing = cardWidth * .53;
+      const spacing = Math.max(cardWidth * .53, (width + cardWidth * 3) / queueItems.length);
       const length = spacing * queueItems.length;
       const slope = Math.min(.65, Math.max(.43, height / width * .78));
       slots.current.forEach((slot, index) => {
@@ -180,10 +180,13 @@ export default function Portfolio() {
   }, [ready, activate]);
 
   useEffect(() => {
-    if (selected === null) return;
+    if (selected === null) {
+      returnFocus.current?.focus({ preventScroll: true });
+      return;
+    }
     closeRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setSelected(null); returnFocus.current?.focus(); }
+      if (event.key === 'Escape') { setSelected(null); }
       if (event.key === 'Tab') {
         const buttons = detailRef.current?.querySelectorAll<HTMLButtonElement>('button');
         if (!buttons?.length) return;
@@ -223,7 +226,7 @@ export default function Portfolio() {
     <div className="queue-meter" aria-hidden="true">{Array.from({length:40},(_,i)=><i key={i} className={hovered !== null || paused ? 'is-paused' : ''} />)}</div>
     {ready && selected === null && <TargetCursor container={stage} targetSelector=".queue-tape" cursorColor="#e4e9ed" cursorColorOnTarget="#b2d1f0" cornerSize={15} thickness={1.5} padding={6} hoverDuration={.25} parallaxOn={false} blendMode="normal" />}
     {selected !== null && <section ref={detailRef} className="tape-detail" role="dialog" aria-modal="true" aria-label={tapes[selected].name}>
-      <button ref={closeRef} className="tape-close" onClick={() => { setSelected(null); returnFocus.current?.focus(); }}>关闭 ×</button>
+      <button ref={closeRef} className="tape-close" onClick={() => { setSelected(null); }}>关闭 ×</button>
       <div className="tape-detail-render"><TapeView key={tapes[selected].id} id={tapes[selected].id} expanded exploded={exploded} /></div>
       <div className="tape-detail-footer"><div><h2>{tapes[selected].name}</h2><p>{tapes[selected].subtitle}</p></div><button onClick={() => setExploded(value => !value)} aria-pressed={exploded}>{exploded ? '合上外壳' : '查看内部结构'}</button></div>
     </section>}
