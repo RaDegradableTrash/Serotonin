@@ -71,7 +71,7 @@ function TapeView({ id, expanded = false, exploded = false }: { id: string; expa
       <Lightformer position={[-5, 0, 3]} rotation={[0, Math.PI / 3, 0]} scale={[2, 8, 1]} intensity={2} />
       <Lightformer position={[4, 2, 5]} rotation={[0, -Math.PI / 4, 0]} scale={[0.6, 8, 1]} intensity={5} />
     </Environment>
-    <ModelBoundary><Suspense fallback={<Html center><span className="model-message">载入中</span></Html>}><group rotation={[0.25, -0.32, expanded ? 0 : -0.07]}><Tape id={id} exploded={exploded} /></group></Suspense></ModelBoundary>
+    <ModelBoundary><Suspense fallback={<Html center><span className="model-message">载入中</span></Html>}><group rotation={expanded ? [0.25, -0.32, 0] : [0.06, -0.08, Math.PI / 2]}><Tape id={id} exploded={exploded} /></group></Suspense></ModelBoundary>
     {expanded && <OrbitControls target={exploded ? [0, 2, 0] : [0, 0, 0]} enablePan={false} minDistance={10} maxDistance={40} />}
   </Canvas>;
 }
@@ -80,13 +80,16 @@ function FitCamera({ exploded, expanded }: { exploded: boolean; expanded: boolea
   const { camera, size } = useThree();
   useEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
-    const distance = Math.max(exploded ? 24 : expanded ? 15 : 14, (expanded ? 5.9 : 6.1) / (Math.tan(camera.fov * Math.PI / 360) * size.width / size.height));
+    const distance = Math.max(exploded ? 24 : expanded ? 15 : 18, (expanded ? 5.9 : 4.1) / (Math.tan(camera.fov * Math.PI / 360) * size.width / size.height));
     camera.position.set(0, 1.5, distance);
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
   }, [camera, size.width, size.height, exploded, expanded]);
   return null;
 }
+
+// Every entry occupies exactly one identical grid cell; null entries preserve the rhythm.
+const slots = [0, null, null, 1, null, null, null, 2, null, null, null, 3, null, null, 4, null, null, null];
 
 export default function Portfolio() {
   const [selected, setSelected] = useState<number | null>(null);
@@ -119,11 +122,13 @@ export default function Portfolio() {
       <span className="portfolio-header-note">PERSONAL ARCHIVE</span>
     </header>
     <section className="portfolio-grid" aria-label="磁带收藏" inert={selected !== null}>
-      {tapes.map((tape, index) => <button ref={element => { cards.current[index] = element; }} key={tape.id} className={`tape-card tape-card--${index}`} onClick={() => { setExploded(false); setSelected(index); }} aria-label={`查看${tape.name}三维模型`}>
+      {slots.map((index, slot) => {
+        if (index === null) return <div key={slot} className={`archive-empty ${[2, 4, 8, 12, 17].includes(slot) ? 'archive-empty--void' : ''}`} aria-hidden="true" />;
+        const tape = tapes[index];
+        return <button ref={element => { cards.current[index] = element; }} key={slot} className="tape-card" onClick={() => { setExploded(false); setSelected(index); }} aria-label={`查看${tape.name}三维模型`}>
         <div className="tape-card-render"><TapeView id={tape.id} /></div>
         <div className="tape-caption"><h2>{tape.name}</h2><span style={{ color: tape.color }}>{tape.subtitle}</span></div>
-      </button>)}
-      <div className="archive-empty archive-empty--a" aria-hidden="true" /><div className="archive-empty archive-empty--b" aria-hidden="true" /><div className="archive-empty archive-empty--c" aria-hidden="true" />
+      </button>; })}
     </section>
     {selected !== null && <section ref={detailRef} className="tape-detail" role="dialog" aria-modal="true" aria-label={tapes[selected].name}>
       <button ref={closeRef} className="tape-close" onClick={() => { setSelected(null); cards.current[selected]?.focus(); }}>关闭 ×</button>
