@@ -1,10 +1,10 @@
-import { Component, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Component, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Environment, Html, Lightformer, OrbitControls, OrthographicCamera, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { navigateTerminal } from './terminalNavigation';
 import './Portfolio.css';
-import TargetCursor from './TargetCursor';
+
 
 const tapes = [
   { id: 'clear', name: '透明介质', subtitle: 'CLEAR / ACRYLIC', color: '#c6dce0' },
@@ -104,131 +104,82 @@ function CaptureFrame({ onReady }: { onReady: (image: string) => void }) {
   return null;
 }
 
-const queueItems = Array.from({ length: 20 }, (_, slot) => slot % tapes.length);
-const smooth = (value: number) => value * value * (3 - 2 * value);
 
+// The same circular shelf used by productivity/MenuCards: x = -R + R cos(phi),
+// z = -R sin(phi). Selection pulls a physical object out along the local x axis.
+function ShelfTape({ slot, active, onSelect, onOpen }: { slot: number; active: number; onSelect: (slot: number) => void; onOpen: () => void }) {
+  const group = useRef<THREE.Group>(null);
+  const phi = (slot - 7) * .12;
+  const x = -8.5 + 8.5 * Math.cos(phi);
+  const z = -8.5 * Math.sin(phi);
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    group.current.position.x = THREE.MathUtils.damp(group.current.position.x, x + (active === slot ? 3.1 : 0), 7, delta);
+    group.current.rotation.y = THREE.MathUtils.damp(group.current.rotation.y, phi + (active === slot ? .35 : 0), 7, delta);
+  });
+  return <group ref={group} position={[x,0,z]} rotation={[0,phi,0]} scale={.24}
+    onPointerOver={event=>{event.stopPropagation();onSelect(slot);}}
+    onClick={event=>{event.stopPropagation(); if(active===slot) onOpen(); else onSelect(slot);}}>
+    <Tape id={tapes[slot % 5].id} exploded={false}/>
+  </group>;
+}
+function ShelfCamera() {
+  const {camera,size}=useThree();
+  useEffect(()=>{
+    if (!(camera instanceof THREE.PerspectiveCamera)) return;
+    const aspect=size.width/size.height;
+    camera.fov=2*Math.atan(Math.tan(Math.PI/10)*Math.max(1,1.35/aspect))*180/Math.PI;
+    camera.position.set(.8,3.2,10.8);camera.lookAt(-1,-.3,0);camera.updateProjectionMatrix();
+  },[camera,size]);
+  return null;
+}
 export default function Portfolio() {
-  const [selected, setSelected] = useState<number | null>(null);
-  const [exploded, setExploded] = useState(false);
-  const [hovered, setHovered] = useState<number | null>(null);
-  const [paused, setPaused] = useState(false);
-  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
-  const [failed, setFailed] = useState(false);
-  const ready = tapes.every(tape => thumbnails[tape.id]);
-  const stage = useRef<HTMLElement>(null);
-  const slots = useRef<Array<HTMLDivElement | null>>([]);
-  const cards = useRef<Array<HTMLButtonElement | null>>([]);
-  const hoveredRef = useRef<number | null>(null);
-  const stopRef = useRef(false);
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const detailRef = useRef<HTMLElement>(null);
-  const returnFocus = useRef<HTMLButtonElement | null>(null);
-  const capture = useCallback((id: string, image: string) => {
-    setThumbnails(previous => previous[id] ? previous : { ...previous, [id]: image });
-  }, []);
-  const onFailure = useCallback(() => setFailed(true), []);
-  const activate = useCallback((slot: number | null) => {
-    hoveredRef.current = slot;
-    setHovered(slot);
-  }, []);
-  useEffect(() => { stopRef.current = selected !== null || paused; }, [selected, paused]);
-
-  useEffect(() => {
-    if (!ready || !stage.current) return;
-    const element = stage.current;
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-    let frame = 0, last = 0, phase = 0, intro = 0, speed = 0;
-    let from = 0, destination = 1, changedAt = 0;
-    let width = element.clientWidth, height = element.clientHeight;
-    const resize = new ResizeObserver(() => { width = element.clientWidth; height = element.clientHeight; });
-    resize.observe(element);
-    const draw = (time: number) => {
-      frame = requestAnimationFrame(draw);
-      if (document.hidden) { last = 0; return; }
-      const dt = last ? Math.min((time - last) / 1000, .05) : 0;
-      last = time; intro += dt;
-      const target = hoveredRef.current !== null || stopRef.current || reduced.matches ? 0 : 1;
-      if (target !== destination) { from = speed; destination = target; changedAt = time; }
-      if (!changedAt) changedAt = time;
-      speed = from + (destination - from) * smooth(Math.min(1, (time - changedAt) / 800));
-      phase += speed * 34 * dt;
-      element.dataset.speed = speed.toFixed(3);
-      const cardWidth = Math.max(200, Math.min(350, width * .26));
-      const spacing = Math.max(cardWidth * .53, (width + cardWidth * 3) / queueItems.length);
-      const length = spacing * queueItems.length;
-      const slope = Math.min(.65, Math.max(.43, height / width * .78));
-      slots.current.forEach((slot, index) => {
-        if (!slot) return;
-        const position = ((index * spacing - phase) % length + length) % length - length / 2;
-        const x = width / 2 + position;
-        const y = height / 2 - position * slope;
-        // The lower-left records are in front; wrapping occurs beyond the viewport.
-        const inView = x > -cardWidth && x < width + cardWidth;
-        const entranceOrder = queueItems.length - 1 - index;
-        const appearance = reduced.matches ? 1 : smooth(Math.min(1, Math.max(0, (intro - entranceOrder * .055) / .55)));
-        slot.style.width = `${cardWidth}px`;
-        slot.style.transform = `translate3d(${x}px,${y + (1 - appearance) * 35}px,0) translate(-50%,-50%)`;
-        slot.style.zIndex = String(Math.round(length - position));
-        slot.style.opacity = String(appearance);
-        slot.style.visibility = inView ? 'visible' : 'hidden';
-      });
-    };
-    frame = requestAnimationFrame(draw);
-    const leave = () => activate(null);
-    window.addEventListener('blur', leave);
-    return () => { cancelAnimationFrame(frame); resize.disconnect(); window.removeEventListener('blur', leave); };
-  }, [ready, activate]);
-
-  useEffect(() => {
-    if (selected === null) {
-      returnFocus.current?.focus({ preventScroll: true });
-      return;
-    }
-    closeRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { setSelected(null); }
-      if (event.key === 'Tab') {
-        const buttons = detailRef.current?.querySelectorAll<HTMLButtonElement>('button');
-        if (!buttons?.length) return;
-        const first = buttons[0], last = buttons[buttons.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  const [active,setActive]=useState(7);
+  const [selected,setSelected]=useState<number|null>(null);
+  const [exploded,setExploded]=useState(false);
+  const closeRef=useRef<HTMLButtonElement>(null);
+  const openRef=useRef<HTMLButtonElement>(null);
+  const detailRef=useRef<HTMLElement>(null);
+  const opened=useRef(false);
+  useEffect(()=>{
+    if(selected===null){if(opened.current)openRef.current?.focus();return;}
+    opened.current=true;closeRef.current?.focus();
+    const key=(event:KeyboardEvent)=>{
+      if(event.key==='Escape')setSelected(null);
+      if(event.key==='Tab'){
+        const buttons=detailRef.current?.querySelectorAll('button');if(!buttons?.length)return;
+        const first=buttons[0],last=buttons[buttons.length-1];
+        if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+        else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
       }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selected]);
-
+    };window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
+  },[selected]);
+  const open=()=>{setExploded(false);setSelected(active%5);};
   return <main className="portfolio-page">
-    <header className="portfolio-header" inert={selected !== null}>
-      <a href="/terminal" onClick={event => { event.preventDefault(); navigateTerminal('/terminal', true, '/portfolio'); }}>dustland<span> / RECORDS</span></a>
+    <header className="portfolio-header" inert={selected!==null}>
+      <a href="/terminal" onClick={event=>{event.preventDefault();navigateTerminal('/terminal',true,'/portfolio');}}>dustland<span> / RECORDS</span></a>
       <nav aria-label="作品集导航"><span aria-current="page">Collection</span><a href="/insight">Insight</a><a href="/terminal">Terminal</a></nav>
-      <button className="queue-pause" onClick={() => setPaused(value => !value)} aria-pressed={paused} aria-label={paused ? '继续磁带滚动' : '暂停磁带滚动'}>{paused ? 'PLAY' : 'PAUSE'}</button>
     </header>
-    {!ready && <div className="queue-loading" role="status">{failed ? '模型载入失败，请刷新重试' : '载入磁带'}</div>}
-    <div className="queue-capture" aria-hidden="true">
-      {tapes.map(tape => !thumbnails[tape.id] && <div key={tape.id}><TapeView id={tape.id} capture={image => capture(tape.id, image)} onError={onFailure} /></div>)}
-    </div>
-    <section ref={stage} className="cassette-stream" data-focusing={hovered !== null || undefined} aria-label="磁带收藏队列" inert={selected !== null}
-      onPointerMove={event => {
-        if (event.pointerType !== 'mouse') return;
-        const card = (event.target as Element).closest<HTMLElement>('[data-queue-slot]');
-        activate(card ? Number(card.dataset.queueSlot) : null);
-      }} onPointerLeave={() => activate(null)}>
-      {ready && queueItems.map((index, slot) => <div className="queue-slot" ref={element => { slots.current[slot] = element; }} key={slot}>
-        <button ref={element => { cards.current[slot] = element; }} className="queue-tape cursor-target" data-queue-slot={slot} data-active={hovered === slot || undefined} data-cursor-label={tapes[index].subtitle}
-          aria-label={`查看${tapes[index].name}三维模型`} onFocus={() => activate(slot)} onBlur={() => activate(null)}
-          onClick={event => { returnFocus.current = event.currentTarget; setExploded(false); setSelected(index); activate(null); }}>
-          <img src={thumbnails[tapes[index].id]} alt="" draggable={false} />
-        </button>
-      </div>)}
+    <section className="cassette-shelf" aria-label="环形磁带收藏" inert={selected!==null}>
+      <Canvas dpr={[1,1.5]} camera={{position:[.8,3.2,10.8],fov:36}} gl={{alpha:true,antialias:true}}>
+        <ShelfCamera/><ambientLight intensity={.8}/><directionalLight position={[3,6,8]} intensity={3}/><directionalLight position={[-5,2,4]} intensity={1.5} color="#abc3d2"/>
+        <Environment resolution={128}><Lightformer position={[0,5,5]} scale={[10,2,1]} intensity={3}/><Lightformer position={[-5,0,3]} rotation={[0,Math.PI/3,0]} scale={[2,8,1]} intensity={2}/></Environment>
+        <ModelBoundary><Suspense fallback={<Html center><span className="model-message">载入磁带</span></Html>}>
+          <group position={[-3.2,-.3,0]} rotation={[0,.42,-.03]}>
+            {Array.from({length:15},(_,slot)=><ShelfTape key={slot} slot={slot} active={active} onSelect={setActive} onOpen={open}/>)}
+          </group>
+        </Suspense></ModelBoundary>
+      </Canvas>
     </section>
-    <div className="queue-meter" aria-hidden="true">{Array.from({length:40},(_,i)=><i key={i} className={hovered !== null || paused ? 'is-paused' : ''} />)}</div>
-    {ready && selected === null && <TargetCursor container={stage} targetSelector=".queue-tape" cursorColor="#e4e9ed" cursorColorOnTarget="#b2d1f0" cornerSize={15} thickness={1.5} padding={6} hoverDuration={.25} parallaxOn={false} blendMode="normal" />}
-    {selected !== null && <section ref={detailRef} className="tape-detail" role="dialog" aria-modal="true" aria-label={tapes[selected].name}>
-      <button ref={closeRef} className="tape-close" onClick={() => { setSelected(null); }}>关闭 ×</button>
-      <div className="tape-detail-render"><TapeView key={tapes[selected].id} id={tapes[selected].id} expanded exploded={exploded} /></div>
-      <div className="tape-detail-footer"><div><h2>{tapes[selected].name}</h2><p>{tapes[selected].subtitle}</p></div><button onClick={() => setExploded(value => !value)} aria-pressed={exploded}>{exploded ? '合上外壳' : '查看内部结构'}</button></div>
+    <div className="shelf-controls" inert={selected!==null}>
+      <div className="shelf-index" aria-label="选择磁带">{tapes.map((tape,index)=><button key={tape.id} aria-label={tape.name} aria-pressed={active%5===index} onClick={()=>setActive(5+index)}>{String(index+1).padStart(2,'0')}</button>)}</div>
+      <button ref={openRef} className="shelf-open" onClick={open}>{tapes[active%5].name}<span>↗</span></button>
+      <small>{tapes[active%5].subtitle}</small>
+    </div>
+    {selected!==null&&<section ref={detailRef} className="tape-detail" role="dialog" aria-modal="true" aria-label={tapes[selected].name}>
+      <button ref={closeRef} className="tape-close" onClick={()=>setSelected(null)}>关闭 ×</button>
+      <div className="tape-detail-render"><TapeView id={tapes[selected].id} expanded exploded={exploded}/></div>
+      <div className="tape-detail-footer"><div><h2>{tapes[selected].name}</h2><p>{tapes[selected].subtitle}</p></div><button onClick={()=>setExploded(value=>!value)} aria-pressed={exploded}>{exploded?'合上外壳':'查看内部结构'}</button></div>
     </section>}
   </main>;
 }
