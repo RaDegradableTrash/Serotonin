@@ -1,6 +1,6 @@
 import { Component, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Environment, Html, Lightformer, OrbitControls, useGLTF } from '@react-three/drei';
+import { Environment, Html, Lightformer, OrbitControls, OrthographicCamera, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { navigateTerminal } from './terminalNavigation';
 import './Portfolio.css';
@@ -63,6 +63,7 @@ function Tape({ id, exploded }: { id: string; exploded: boolean }) {
 function TapeView({ id, expanded = false, exploded = false }: { id: string; expanded?: boolean; exploded?: boolean }) {
   return <Canvas frameloop={expanded ? 'always' : 'demand'} camera={{ position: [0, 1.5, 15], fov: expanded ? 37 : 34 }} dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
     <ambientLight intensity={0.7} />
+    {!expanded && <OrthographicCamera makeDefault manual position={[0, 0, 20]} left={-3.352239} right={3.352239} top={4.790255} bottom={-4.790255} near={0.1} far={100} />}
     <FitCamera exploded={exploded} expanded={expanded} />
     <directionalLight position={[3, 6, 8]} intensity={3} />
     <directionalLight position={[-5, -2, 4]} intensity={1.2} color="#abc3d2" />
@@ -71,7 +72,7 @@ function TapeView({ id, expanded = false, exploded = false }: { id: string; expa
       <Lightformer position={[-5, 0, 3]} rotation={[0, Math.PI / 3, 0]} scale={[2, 8, 1]} intensity={2} />
       <Lightformer position={[4, 2, 5]} rotation={[0, -Math.PI / 4, 0]} scale={[0.6, 8, 1]} intensity={5} />
     </Environment>
-    <ModelBoundary><Suspense fallback={<Html center><span className="model-message">载入中</span></Html>}><group rotation={expanded ? [0.25, -0.32, 0] : [0.06, -0.08, Math.PI / 2]}><Tape id={id} exploded={exploded} /></group></Suspense></ModelBoundary>
+    <ModelBoundary><Suspense fallback={<Html center><span className="model-message">载入中</span></Html>}><group rotation={expanded ? [0.25, -0.32, 0] : [0, 0, Math.PI / 2]}><Tape id={id} exploded={exploded} /></group></Suspense></ModelBoundary>
     {expanded && <OrbitControls target={exploded ? [0, 2, 0] : [0, 0, 0]} enablePan={false} minDistance={10} maxDistance={40} />}
   </Canvas>;
 }
@@ -79,7 +80,7 @@ function TapeView({ id, expanded = false, exploded = false }: { id: string; expa
 function FitCamera({ exploded, expanded }: { exploded: boolean; expanded: boolean }) {
   const { camera, size } = useThree();
   useEffect(() => {
-    if (!(camera instanceof THREE.PerspectiveCamera)) return;
+    if (!expanded || !(camera instanceof THREE.PerspectiveCamera)) return;
     const distance = Math.max(exploded ? 24 : expanded ? 15 : 18, (expanded ? 5.9 : 4.1) / (Math.tan(camera.fov * Math.PI / 360) * size.width / size.height));
     camera.position.set(0, 1.5, distance);
     camera.lookAt(0, 0, 0);
