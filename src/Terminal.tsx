@@ -302,5 +302,12 @@ export default function Terminal({ reveal = false, revealFrom = '/brain_in_vat' 
       <span className="glass-panel__description">INSIGHT</span>
       <span className="glass-panel__action">进入 <span aria-hidden="true">→</span></span>
     </a>
+    <a className="glass-panel glass-panel--portfolio" href="/portfolio">
+      <canvas className="glass-panel__diffusion" width={6} height={12} aria-hidden="true" />
+      <span className="glass-panel__eyebrow">ARCHIVE</span>
+      <span className="glass-panel__title">作品集</span>
+      <span className="glass-panel__description">PORTFOLIO</span>
+      <span className="glass-panel__action">进入</span>
+    </a>
   </main>;
 }

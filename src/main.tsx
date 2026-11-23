@@ -5,7 +5,7 @@ import { prepareDomain } from './domainMigration'
 
 // Keep the immersive pages' pointer interactions free of the browser menu.
 document.addEventListener('contextmenu', event => {
-  if (/^\/(?:(?:terminal|insight|brain_in_vat)\/?)?$/.test(location.pathname)) {
+  if (/^\/(?:(?:terminal|insight|brain_in_vat|portfolio)\/?)?$/.test(location.pathname)) {
     event.preventDefault();
   }
 });
@@ -14,6 +14,13 @@ const root = createRoot(document.getElementById('root')!);
 let routeVersion = 0;
 async function boot() {
   const version = ++routeVersion;
+  if (/^\/portfolio\/?$/.test(location.pathname)) {
+    const { default: Portfolio } = await import('./Portfolio');
+    if (version !== routeVersion) return;
+    document.title = 'DUSTLAND / Portfolio';
+    root.render(<StrictMode><Portfolio /></StrictMode>);
+    return;
+  }
   if (/^\/insight\/?$/.test(location.pathname)) {
     const { default: Insight } = await import('./Insight');
     if (version !== routeVersion) return;

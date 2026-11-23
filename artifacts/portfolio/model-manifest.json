@@ -1,0 +1,32 @@
+[
+  {
+    "variant": "clear",
+    "objects": 150,
+    "vertices": 7008,
+    "bytes": 1036836
+  },
+  {
+    "variant": "smoke",
+    "objects": 132,
+    "vertices": 6627,
+    "bytes": 986348
+  },
+  {
+    "variant": "ivory",
+    "objects": 154,
+    "vertices": 7509,
+    "bytes": 1130172
+  },
+  {
+    "variant": "black",
+    "objects": 136,
+    "vertices": 7387,
+    "bytes": 1039592
+  },
+  {
+    "variant": "red",
+    "objects": 136,
+    "vertices": 7083,
+    "bytes": 1021116
+  }
+]
