@@ -30,3 +30,19 @@ GLB geometry is oriented to face +Z, normalized uniformly to 72% of Blender unit
 `/portfolio` is handled by both dev and preview middleware. The homepage has a third
 glass entry. The gallery renders on demand; only the open inspection view animates.
 The inspection view supports orbit, zoom, shell separation, Escape and keyboard focus trapping.
+
+## Current user-edited colors and diagonal stream
+
+The latest exports preserve the user's navy polymer and blue-gray label edits.
+The original RED collection now exports as blue.glb. Do not regenerate the complete
+file with the original builder when preserving subsequent hand edits. Instead save
+in Blender and export the current collection:
+
+```powershell
+& 'C:/Program Files/Blender Foundation/Blender 5.2/blender.exe' -b 'C:/Users/Ragon/Documents/Blender/PortfolioRecordTape_Complete.blend' -P scripts/export-portfolio-current.py
+```
+
+The queue captures each GLB once to a transparent image for efficient repeated cards;
+inspection still uses the live GLB. Hover ramps velocity to zero over 800ms, lifts the
+selected card, and multiplies other cards by 0.2 opacity independently of shell alpha.
+TargetCursor.jsx is the supplied cursor implementation, with local CSS and TS types.

@@ -1,0 +1,4 @@
+.target-cursor{position:fixed;inset:0;z-index:200;pointer-events:none;color:var(--target-cursor-color,#fff)}
+.target-cursor__corner{position:absolute;left:0;top:0;border-style:solid;border-color:currentColor;transform-origin:0 0;will-change:transform}
+.target-cursor__dot{position:absolute;left:0;top:0;background:currentColor;border-radius:50%;will-change:transform}
+.target-cursor__label{position:absolute;left:0;top:0;font:11px/1.4 monospace;letter-spacing:.12em;white-space:nowrap;will-change:transform}
