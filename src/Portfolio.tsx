@@ -63,7 +63,7 @@ function Tape({ id, exploded }: { id: string; exploded: boolean }) {
 function TapeView({ id, expanded = false, exploded = false }: { id: string; expanded?: boolean; exploded?: boolean }) {
   return <Canvas frameloop={expanded ? 'always' : 'demand'} camera={{ position: [0, 1.5, 15], fov: expanded ? 37 : 34 }} dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
     <ambientLight intensity={0.7} />
-    <FitCamera exploded={exploded} />
+    <FitCamera exploded={exploded} expanded={expanded} />
     <directionalLight position={[3, 6, 8]} intensity={3} />
     <directionalLight position={[-5, -2, 4]} intensity={1.2} color="#abc3d2" />
     <Environment resolution={128}>
@@ -76,15 +76,15 @@ function TapeView({ id, expanded = false, exploded = false }: { id: string; expa
   </Canvas>;
 }
 
-function FitCamera({ exploded }: { exploded: boolean }) {
+function FitCamera({ exploded, expanded }: { exploded: boolean; expanded: boolean }) {
   const { camera, size } = useThree();
   useEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera)) return;
-    const distance = Math.max(exploded ? 24 : 15, 5.9 / (Math.tan(camera.fov * Math.PI / 360) * size.width / size.height));
+    const distance = Math.max(exploded ? 24 : expanded ? 15 : 14, (expanded ? 5.9 : 6.1) / (Math.tan(camera.fov * Math.PI / 360) * size.width / size.height));
     camera.position.set(0, 1.5, distance);
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
-  }, [camera, size.width, size.height, exploded]);
+  }, [camera, size.width, size.height, exploded, expanded]);
   return null;
 }
 
@@ -119,15 +119,12 @@ export default function Portfolio() {
       <span className="portfolio-header-note">PERSONAL ARCHIVE</span>
     </header>
     <section className="portfolio-grid" aria-label="磁带收藏" inert={selected !== null}>
-      <div className="archive-intro"><span>磁性记忆 / MAGNETIC MEMORY</span><h1>Things<br />left recorded.</h1><p>保留下来的片段。</p></div>
       {tapes.map((tape, index) => <button ref={element => { cards.current[index] = element; }} key={tape.id} className={`tape-card tape-card--${index}`} onClick={() => { setExploded(false); setSelected(index); }} aria-label={`查看${tape.name}三维模型`}>
         <div className="tape-card-render"><TapeView id={tape.id} /></div>
         <div className="tape-caption"><h2>{tape.name}</h2><span style={{ color: tape.color }}>{tape.subtitle}</span></div>
       </button>)}
       <div className="archive-empty archive-empty--a" aria-hidden="true" /><div className="archive-empty archive-empty--b" aria-hidden="true" /><div className="archive-empty archive-empty--c" aria-hidden="true" />
-      <div className="archive-note">FORM / MEMORY / SIGNAL<br /><span>物件是另一种存储。</span></div>
     </section>
-    <footer className="portfolio-footer"><span>DUSTLAND — OBJECT ARCHIVE</span><span>FIVE MATERIAL STUDIES</span></footer>
     {selected !== null && <section ref={detailRef} className="tape-detail" role="dialog" aria-modal="true" aria-label={tapes[selected].name}>
       <button ref={closeRef} className="tape-close" onClick={() => { setSelected(null); cards.current[selected]?.focus(); }}>关闭 ×</button>
       <div className="tape-detail-render"><TapeView key={tapes[selected].id} id={tapes[selected].id} expanded exploded={exploded} /></div>
