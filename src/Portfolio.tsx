@@ -65,7 +65,7 @@ function Tape({ id, exploded, capture }: { id: string; exploded: boolean; captur
 function TapeView({ id, expanded = false, exploded = false, capture, onError }: { id: string; expanded?: boolean; exploded?: boolean; capture?: (image: string) => void; onError?: () => void }) {
   return <Canvas frameloop={expanded || capture ? 'always' : 'demand'} camera={{ position: [0, 1.5, 15], fov: expanded ? 37 : 34 }} dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
     <ambientLight intensity={0.7} />
-    {!expanded && <OrthographicCamera makeDefault manual position={[0, 0, 20]} left={-4.790255} right={4.790255} top={3.352239} bottom={-3.352239} near={0.1} far={100} />}
+    {!expanded && <OrthographicCamera makeDefault manual position={[0, 0, 20]} left={-5.15} right={5.15} top={3.604} bottom={-3.604} near={0.1} far={100} />}
     <FitCamera exploded={exploded} expanded={expanded} />
     <directionalLight position={[3, 6, 8]} intensity={3} />
     <directionalLight position={[-5, -2, 4]} intensity={1.2} color="#abc3d2" />
@@ -74,7 +74,7 @@ function TapeView({ id, expanded = false, exploded = false, capture, onError }: 
       <Lightformer position={[-5, 0, 3]} rotation={[0, Math.PI / 3, 0]} scale={[2, 8, 1]} intensity={2} />
       <Lightformer position={[4, 2, 5]} rotation={[0, -Math.PI / 4, 0]} scale={[0.6, 8, 1]} intensity={5} />
     </Environment>
-    <ModelBoundary onError={onError}><Suspense fallback={<Html center><span className="model-message">载入中</span></Html>}><group rotation={expanded ? [0.25, -0.32, 0] : [0, 0, 0]}><Tape id={id} exploded={exploded} capture={capture} /></group></Suspense></ModelBoundary>
+    <ModelBoundary onError={onError}><Suspense fallback={<Html center><span className="model-message">载入中</span></Html>}><group rotation={[0.62, -0.55, 0.16]}><Tape id={id} exploded={exploded} capture={capture} /></group></Suspense></ModelBoundary>
     {expanded && <OrbitControls target={exploded ? [0, 2, 0] : [0, 0, 0]} enablePan={false} minDistance={10} maxDistance={40} />}
   </Canvas>;
 }
@@ -229,4 +229,3 @@ export default function Portfolio() {
     </section>}
   </main>;
 }
-
