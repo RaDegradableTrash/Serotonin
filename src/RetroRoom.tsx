@@ -8,7 +8,7 @@ import { drawRoomScreen } from './roomScreen';
 import { navigateTerminal } from './terminalNavigation';
 import './RetroRoom.css';
 
-const MODEL = `${import.meta.env.BASE_URL}models/room/retro-room.glb?v=retro-material-1`;
+const MODEL = `${import.meta.env.BASE_URL}models/room/retro-room.glb?v=retro-refined-2`;
 const POSTER = `${import.meta.env.BASE_URL}models/room/material-preview.png`;
 class RoomBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };

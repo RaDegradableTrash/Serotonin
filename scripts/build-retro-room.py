@@ -19,6 +19,7 @@ def bounds(objects):
 wb=bounds(bpy.data.collections['07_Wardrobe'].objects)
 curt=bounds([o for o in s.objects if o.name.startswith('Curtain_Pleated_1')])
 clearance=curt[0][1]-wb[1][1];assert clearance>.035,clearance
+exec(compile((ROOT/'scripts/refine-computer.py').read_text(encoding='utf-8'),'refine-computer.py','exec'))
 
 def image(name,w,h,pixels):
     im=bpy.data.images.new(name,width=w,height=h,alpha=True);im.pixels.foreach_set(pixels);im.filepath_raw=str(ART/(name+'.png'));im.file_format='PNG';im.save();im.pack();return im
