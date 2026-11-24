@@ -14,6 +14,13 @@ const root = createRoot(document.getElementById('root')!);
 let routeVersion = 0;
 async function boot() {
   const version = ++routeVersion;
+  if (/^\/index\/?$/.test(location.pathname)) {
+    const { default: RetroRoom } = await import('./RetroRoom');
+    if (version !== routeVersion) return;
+    document.title = 'DUSTLAND / A room of my own';
+    root.render(<StrictMode><RetroRoom /></StrictMode>);
+    return;
+  }
   if (/^\/portfolio\/?$/.test(location.pathname)) {
     const { default: Portfolio } = await import('./Portfolio');
     if (version !== routeVersion) return;
